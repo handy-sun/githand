@@ -40,6 +40,7 @@ def main() -> None:
     p_restore = sub.add_parser("restore", help="restore workspace from snapshot")
     p_restore.add_argument("snapshot", help="snapshot JSON file")
     p_restore.add_argument("target_dir", help="target directory to restore into")
+    p_restore.add_argument("--base-path", help="map snapshot base_path to this directory (default: target_dir)")
     p_restore.add_argument("--dry-run", action="store_true", help="preview without making changes")
 
     ## ls
@@ -105,7 +106,7 @@ def _cmd_restore(args) -> None:
 def _cmd_ls(args) -> None:
     from githand.config import load_repos
     from githand.display import bold, dim
-    repos = load_repos()
+    _, repos = load_repos()
     if not repos:
         print("No repos registered.")
         return
@@ -117,14 +118,14 @@ def _cmd_ls(args) -> None:
 def _cmd_rm(args) -> None:
     from githand.config import load_repos, remove_repo, save_repos
     from githand.display import bold
-    repos = load_repos()
+    base_path, repos = load_repos()
     before = len(repos)
     repos = remove_repo(args.name, repos)
     after = len(repos)
     if after == before:
         print(f"Repo {bold(args.name)} not found in registry.")
         return
-    save_repos(repos)
+    save_repos(repos, base_path=base_path)
     print(f"Removed {bold(args.name)} from registry.")
 
 

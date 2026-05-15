@@ -23,7 +23,7 @@ def restore_repo(
         data_dir: directory containing untracked tar files
         dry_run: only print what would happen
     """
-    repo_path = target_dir / snapshot.name
+    repo_path = target_dir / snapshot.path
 
     if not snapshot.remotes:
         print(f"  SKIP {snapshot.name}: no remotes configured")

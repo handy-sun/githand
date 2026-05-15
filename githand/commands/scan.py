@@ -25,12 +25,14 @@ def run_scan(args) -> None:
         print(f"No git repos found under {base}")
         return
 
-    existing = load_repos()
+    existing_base, existing = load_repos()
     merged = add_repos(discovered, existing)
     new_count = len(merged) - len(existing)
     existing_in_scan = len(discovered) - new_count
 
-    save_repos(merged)
+    ## set base_path only on first scan; preserve existing
+    final_base = existing_base or str(base)
+    save_repos(merged, base_path=final_base)
 
     print(f"Scanned {bold(str(base))}")
     print(f"Found {bold(str(len(discovered)))} repos, {green(str(new_count))} new, {dim(str(existing_in_scan))} already registered")

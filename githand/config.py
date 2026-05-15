@@ -26,24 +26,36 @@ def groups_path() -> Path:
     return config_dir() / "groups.json"
 
 
-def load_repos() -> list[RepoRecord]:
-    """Load registered repos from disk."""
+def load_repos() -> tuple[str, list[RepoRecord]]:
+    """Load registered repos from disk.
+
+    Returns (base_path, repos). base_path is "" if not set (legacy format).
+    """
     p = registry_path()
     if not p.exists():
-        return []
+        return "", []
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return [RepoRecord.from_dict(d) for d in data]
+        ## new format: {"base_path": "...", "repos": [...]}
+        if isinstance(data, dict):
+            base_path = data.get("base_path", "")
+            repos = [RepoRecord.from_dict(d) for d in data.get("repos", [])]
+            return base_path, repos
+        ## legacy format: [...]
+        return "", [RepoRecord.from_dict(d) for d in data]
     except (json.JSONDecodeError, KeyError):
-        return []
+        return "", []
 
 
-def save_repos(repos: list[RepoRecord]) -> None:
+def save_repos(repos: list[RepoRecord], base_path: str = "") -> None:
     """Save repo registry to disk."""
     p = registry_path()
     p.parent.mkdir(parents=True, exist_ok=True)
+    data: dict = {"repos": [r.to_dict() for r in repos]}
+    if base_path:
+        data["base_path"] = base_path
     p.write_text(
-        json.dumps([r.to_dict() for r in repos], indent=2, ensure_ascii=False),
+        json.dumps(data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 

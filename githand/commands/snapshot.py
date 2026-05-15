@@ -16,7 +16,7 @@ from githand.display import bold, dim, green, yellow
 
 def run_snapshot(args) -> None:
     """Execute the snapshot command."""
-    repos = load_repos()
+    base_path, repos = load_repos()
     if not repos:
         print("No repos registered. Run 'githand scan <path>' first.")
         return
@@ -60,6 +60,11 @@ def run_snapshot(args) -> None:
     for r in repos:
         try:
             snap = collect_snapshot(r.path, r.name, data_dir=data_dir)
+            ## compute relative path for portability
+            if base_path and r.path.startswith(base_path + "/"):
+                snap.path = r.path[len(base_path) + 1:]
+            else:
+                snap.path = r.name
             snapshots.append(snap)
             dirty_flag = yellow("dirty") if snap.dirty.is_dirty else green("clean")
             print(f"  {bold(r.name)} {dirty_flag}")
@@ -71,7 +76,7 @@ def run_snapshot(args) -> None:
         version=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         hostname=platform.node(),
-        base_path=str(Path.home()),
+        base_path=base_path or str(Path.home()),
         repos=snapshots,
         groups=groups,
     )

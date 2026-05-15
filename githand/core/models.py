@@ -120,7 +120,7 @@ class RepoRecord:
     group: Optional[str] = None
 
     def to_dict(self) -> dict:
-        d = {"name": self.name, "path": self.path}
+        d: dict = {"name": self.name, "path": self.path}
         if self.group is not None:
             d["group"] = self.group
         return d

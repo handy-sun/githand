@@ -15,7 +15,7 @@ from githand.display import bold, dim, print_repo_json, print_repo_status
 
 def run_status(args) -> None:
     """Execute the status command."""
-    repos = load_repos()
+    _, repos = load_repos()
     if not repos:
         print("No repos registered. Run 'githand scan <path>' first.")
         return
