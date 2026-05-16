@@ -4,9 +4,13 @@ bin/
 # Go test/cache
 *.test
 *.out
+coverage.out
 
 # Go vendor (if used)
 vendor/
+
+# GoReleaser dist
+dist/
 
 # Snapshot outputs
 *snapshot*.json
