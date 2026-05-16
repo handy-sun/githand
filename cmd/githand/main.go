@@ -10,9 +10,14 @@ import (
 )
 
 var (
-	cfgDir    string
-	cfg       config.Config
-	registry  config.Registry
+	cfgDir   string
+	cfg      config.Config
+	registry config.Registry
+
+	// Build-time variables injected via -ldflags -X
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 var rootCmd = &cobra.Command{
@@ -32,6 +37,8 @@ func init() {
 	rootCmd.AddCommand(lsCmd)
 	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(groupCmd)
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate(fmt.Sprintf("githand %s (commit: %s, built: %s)\n", version, commit, date))
 }
 
 func main() {
