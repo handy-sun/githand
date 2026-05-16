@@ -1,16 +1,20 @@
 # Go build output
 bin/
 
-# Python-generated files (legacy)
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Go test/cache
+*.test
+*.out
 
-# Virtual environments (legacy)
-.venv
+# Go vendor (if used)
+vendor/
 
 # Snapshot outputs
 *snapshot*.json
+
+# OS/editor artifacts
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
