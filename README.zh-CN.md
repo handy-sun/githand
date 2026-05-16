@@ -8,26 +8,27 @@ Git 工作区同步与迁移 CLI — scan、status、snapshot、restore。
 
 - **完整工作区迁移** — 快照每个仓库的状态（远程地址、分支、stash、未提交更改、未跟踪文件）并在另一台机器上复现
 - **脏状态保留** — 暂存/未暂存的 diff、stash 条目、未跟踪文件（含二进制）全部捕获并恢复
-- **并行状态收集** — 并发收集所有仓库状态（默认 8 个工作线程）
+- **并行状态收集** — 并发收集所有仓库状态（可配置工作线程数）
 - **智能分组** — 按子目录名自动分组，或手动管理分组
 - **路径可移植** — 快照内部使用相对路径；`--base-path` 在恢复时重新映射根目录，`/Users/you/work` 无缝变为 `/home/me/projects`
 - **过滤与查询** — 按脏状态、领先远程、有 stash、分组、所有者等条件筛选仓库
 - **JSON 输出** — 机器可读的状态输出，方便脚本集成
-- **零依赖** — 仅需 Python 3.12+ 和 git，无第三方包
-- **XDG 配置** — 注册表和分组存放在 `~/.config/githand/`
+- **TOML 配置** — 注册表和分组存放在 `~/.config/githand/`（config.toml + repos.toml）
+- **Cobra CLI** — 基于 spf13/cobra 构建，提供完善的命令行体验
 
 ## 安装
 
 ```bash
-# 克隆后用 uv 安装
+# 克隆后构建
 git clone https://github.com/handy-sun/githand.git
 cd githand
-uv sync
-uv run githand --help
+go build -o bin/githand ./cmd/githand/
 
-# 或全局安装
-uv tool install .
+# 或用 go install 安装
+go install github.com/handy-sun/githand/cmd/githand@latest
 ```
+
+需要 Go 1.26+ 和 git。CGO 禁用（纯 Go 构建）。
 
 ## 快速开始
 
@@ -112,10 +113,9 @@ workspace-snapshot-20260515-221241-data/      # 未跟踪文件压缩包
 
 **每个仓库捕获的内容：**
 
-- 远程 URL（fetch + push）
-- 所有本地分支，含上游追踪和同步状态
+- 远程 URL
+- 所有本地分支，含上游追踪
 - 当前分支和 HEAD 提交
-- `.git/config` 内容
 - 已暂存 diff（`git diff --cached`）
 - 未暂存 diff（`git diff`）
 - Stash 条目（每个作为完整补丁）
@@ -134,12 +134,9 @@ githand restore <snapshot.json> <target_dir> --dry-run
 1. 从主远程 `git clone`
 2. 添加额外的远程
 3. `git checkout` 到原始分支
-4. 为非 HEAD 分支建立上游追踪
-5. 合并 `.git/config`（非破坏性，跳过已存在的段）
-6. 应用暂存补丁（`git apply --cached`）
-7. 应用未暂存补丁（`git apply`）
-8. 应用 stash 补丁（每个 `git apply` + `git stash`）
-9. 从 tar.gz 提取未跟踪文件
+4. 应用暂存补丁（`git apply --cached`）
+5. 应用未暂存补丁（`git apply`）
+6. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
 
 `--base-path` 将快照的原始根目录映射到新路径，保留相对目录结构。不指定时，`target_dir` 作为基础路径。
 
@@ -193,12 +190,12 @@ githand group ls                       # 列出所有分组
 | **批量 git 命令** | 非核心功能 | 核心功能（`gita super`、`gita shell`） |
 | **自定义命令派发** | — | 支持（cmds.json、super、shell） |
 | **状态展示** | 每仓库详细视图 | 紧凑并排的 `gita ll` |
-| **并行状态收集** | ThreadPoolExecutor | 异步执行 |
+| **并行状态收集** | Goroutine 池 | 异步执行 |
 | **按状态筛选** | dirty / ahead / stash / detached | 颜色编码展示 |
 | **按子目录分组** | 扫描时 `--auto-group` | 添加时 `add -a` |
 | **路径可移植** | 相对路径 + `--base-path` | `clone -p` 保留路径 |
 | **JSON 输出** | `--json` 标志 | 无 |
-| **依赖** | 零依赖（仅 Python 3.12+） | pip 包，有第三方依赖 |
+| **实现语言** | Go（单二进制） | Python（pip 包） |
 
 **总结：** 如果你需要在一个地方对多个仓库执行 git 命令，用 **gita**。如果你需要把整个工作区——包括所有进行中的工作——搬到新机器，用 **githand**。
 
@@ -206,11 +203,11 @@ githand group ls                       # 列出所有分组
 
 ```bash
 cd githand
-uv sync                  # 安装依赖
-uv run githand <command> # 本地运行
+go build -o bin/githand ./cmd/githand/   # 构建
+go test ./...                              # 测试
 ```
 
-配置位于 `~/.config/githand/` — 删除 `repos.json` 可重置注册表。
+配置位于 `~/.config/githand/` — 删除 `repos.toml` 可重置注册表。
 
 ## 许可证
 

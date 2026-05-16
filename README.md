@@ -8,26 +8,27 @@ Move your entire git workspace to a new machine with one command, **including un
 
 - **Full workspace migration** — snapshot every repo's state (remotes, branches, stashes, uncommitted changes, untracked files) and reproduce it on another machine
 - **Dirty state preservation** — staged/unstaged diffs, stash entries, and untracked files (including binary) are all captured and restored
-- **Parallel status** — collect status across all repos concurrently (8 workers by default)
+- **Parallel status** — collect status across all repos concurrently (configurable worker count)
 - **Smart grouping** — auto-group repos by subdirectory name, or manage groups manually
 - **Portable paths** — snapshots use relative paths internally; `--base-path` remaps the root on restore, so `/Users/you/work` becomes `/home/me/projects` seamlessly
 - **Filter & query** — find dirty repos, repos ahead of remote, stashed repos, or repos by group/owner
 - **JSON output** — machine-readable status output for scripting
-- **Zero dependencies** — only Python 3.12+ and git, no third-party packages
-- **XDG config** — registry and groups live under `~/.config/githand/`
+- **TOML config** — registry and groups live under `~/.config/githand/` (config.toml + repos.toml)
+- **Cobra CLI** — built with spf13/cobra for a polished command-line experience
 
 ## Installation
 
 ```bash
-# clone and install with uv
+# clone and build
 git clone https://github.com/handy-sun/githand.git
 cd githand
-uv sync
-uv run githand --help
+go build -o bin/githand ./cmd/githand/
 
-# or install globally
-uv tool install .
+# or install with go install
+go install github.com/handy-sun/githand/cmd/githand@latest
 ```
+
+Requires Go 1.26+ and git. CGO disabled (pure Go build).
 
 ## Quick Start
 
@@ -112,10 +113,9 @@ workspace-snapshot-20260515-221241-data/      # untracked file tarballs
 
 **What gets captured per repo:**
 
-- Remote URLs (fetch + push)
-- All local branches with upstream tracking and sync status
+- Remote URLs
+- All local branches with upstream tracking
 - Current branch and HEAD commit
-- `.git/config` content
 - Staged diff (`git diff --cached`)
 - Unstaged diff (`git diff`)
 - Stash entries (each as a full patch)
@@ -134,12 +134,9 @@ Restore replays each repo's snapshot in order:
 1. `git clone` from primary remote
 2. Add additional remotes
 3. `git checkout` the original branch
-4. Track non-HEAD branches against their upstreams
-5. Merge `.git/config` (non-destructive, skips existing sections)
-6. Apply staged patch (`git apply --cached`)
-7. Apply unstaged patch (`git apply`)
-8. Apply stash patches (`git apply` + `git stash` for each)
-9. Extract untracked files from tar.gz
+4. Apply staged patch (`git apply --cached`)
+5. Apply unstaged patch (`git apply`)
+6. Apply stash patches (`git apply --index` + `git stash` for each)
 
 The `--base-path` flag remaps the snapshot's original root to a new path, preserving the relative directory structure. Without it, `target_dir` is used as the base.
 
@@ -193,12 +190,12 @@ If `base_path` changes (e.g. you rescan from a different directory), stored rela
 | **Batch git commands** | Not the focus | Core feature (`gita super`, `gita shell`) |
 | **Custom command dispatch** | — | Yes (cmds.json, super, shell) |
 | **Status display** | Per-repo detail view | Compact side-by-side `gita ll` |
-| **Parallel status** | ThreadPoolExecutor | Async execution |
+| **Parallel status** | Goroutine pool | Async execution |
 | **Filter by state** | dirty / ahead / stash / detached | Color-coded display |
 | **Group by subdirectory** | `--auto-group` on scan | `add -a` on add |
 | **Path portability** | Relative paths + `--base-path` | `clone -p` preserves paths |
 | **JSON output** | `--json` flag | No |
-| **Dependencies** | Zero (Python 3.12+ only) | pip package with dependencies |
+| **Implementation** | Go (single binary) | Python (pip package) |
 
 **TL;DR:** Use **gita** if you need to run git commands across many repos from one place. Use **githand** if you need to move your entire workspace — with all its in-progress work — to a new machine.
 
@@ -206,11 +203,11 @@ If `base_path` changes (e.g. you rescan from a different directory), stored rela
 
 ```bash
 cd githand
-uv sync                  # install dependencies
-uv run githand <command> # run locally
+go build -o bin/githand ./cmd/githand/   # build
+go test ./...                              # test
 ```
 
-Config lives at `~/.config/githand/` — delete `repos.json` to reset the registry.
+Config lives at `~/.config/githand/` — delete `repos.toml` to reset the registry.
 
 ## License
 
