@@ -81,6 +81,9 @@ func walkDir(root, dir string, recursive, autoGroup bool, seen map[string]bool, 
 // computeGroup returns the subdirectory name under root as the group.
 // e.g. root=/Users/qi/work, path=/Users/qi/work/nix/expnix -> "nix"
 func computeGroup(root, path string) string {
+	// resolve symlinks to handle macOS /var -> /private/var
+	root, _ = filepath.EvalSymlinks(root)
+	path, _ = filepath.EvalSymlinks(path)
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return ""

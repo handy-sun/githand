@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -76,14 +77,29 @@ func IsDirty(dir string) bool {
 	return out != ""
 }
 
-// StagedPatch returns the diff of the staging area.
+// StagedPatch returns the diff of the staging area, suitable for git apply.
 func StagedPatch(dir string) (string, error) {
-	return Run(dir, "diff", "--cached")
+	out, err := Run(dir, "diff", "--cached", "--no-ext-diff")
+	if err != nil {
+		return "", err
+	}
+	// git apply requires a trailing newline for patch format
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out, nil
 }
 
-// UnstagedPatch returns the diff of unstaged changes.
+// UnstagedPatch returns the diff of unstaged changes, suitable for git apply.
 func UnstagedPatch(dir string) (string, error) {
-	return Run(dir, "diff")
+	out, err := Run(dir, "diff", "--no-ext-diff")
+	if err != nil {
+		return "", err
+	}
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out, nil
 }
 
 // StashList returns the stash ref list (one per line).
@@ -93,7 +109,14 @@ func StashList(dir string) (string, error) {
 
 // StashPatch returns the full diff of a stash entry (e.g. "stash@{0}").
 func StashPatch(dir, ref string) (string, error) {
-	return Run(dir, "stash", "show", "-p", ref)
+	out, err := Run(dir, "stash", "show", "-p", ref)
+	if err != nil {
+		return "", err
+	}
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out, nil
 }
 
 // UntrackedFiles returns a list of untracked file paths, one per line.
@@ -111,9 +134,11 @@ func Branches(dir string) (string, error) {
 	return Run(dir, "for-each-ref", "--format=%(refname:short)\t%(upstream:short)", "refs/heads/")
 }
 
-// Clone runs git clone with the given URL and target directory.
+// Clone runs git clone with the given URL into the target directory.
+// The target must not exist; git clone creates it.
 func Clone(url, target string) error {
-	return RunSilent(target, "clone", url, target)
+	parent := filepath.Dir(target)
+	return RunSilent(parent, "clone", url, target)
 }
 
 // Checkout switches to the given branch or commit.
@@ -121,7 +146,7 @@ func Checkout(dir, ref string) error {
 	return RunSilent(dir, "checkout", ref)
 }
 
-// ApplyCached applies a patch to the staging area.
+// ApplyCached applies a patch to the staging area and updates the working tree.
 func ApplyCached(dir, patch string) error {
 	cmd := exec.Command("git", "apply", "--cached")
 	cmd.Dir = dir
@@ -129,9 +154,10 @@ func ApplyCached(dir, patch string) error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git apply --cached: %w\n%s", err, stderr.String())
+		return fmt.Errorf("git apply --cached: %w\nstderr:\n%s\npatch:\n%s", err, stderr.String(), patch)
 	}
-	return nil
+	// --cached only updates the index; materialize files to working tree
+	return RunSilent(dir, "checkout-index", "-a")
 }
 
 // Apply applies a patch to the working tree.
@@ -147,14 +173,22 @@ func Apply(dir, patch string) error {
 	return nil
 }
 
-// StashApply recreates a stash from a patch by applying it to the index,
-// then stashing. This is approximate — the exact stash commit graph
-// cannot be perfectly recreated.
+// StashApply recreates a stash from a patch by applying it to both the
+// index and working tree, then stashing. This is approximate — the exact
+// stash commit graph cannot be perfectly recreated.
 func StashApply(dir, patch string) error {
-	// apply to working tree, then stash
-	if err := Apply(dir, patch); err != nil {
-		return err
+	// apply to index and working tree simultaneously
+	cmd := exec.Command("git", "apply", "--index")
+	cmd.Dir = dir
+	cmd.Stdin = strings.NewReader(patch)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git apply --index: %w\n%s", err, stderr.String())
 	}
+	// materialize any new files from index
+	_ = RunSilent(dir, "checkout-index", "-a")
+	// now stash the result
 	return RunSilent(dir, "stash")
 }
 
