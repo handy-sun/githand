@@ -1,4 +1,7 @@
-# Python-generated files
+# Go build output
+bin/
+
+# Python-generated files (legacy)
 __pycache__/
 *.py[oc]
 build/
@@ -6,6 +9,8 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Virtual environments (legacy)
 .venv
+
+# Snapshot outputs
 *snapshot*.json
