@@ -4,13 +4,16 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/handy-sun/githand/internal/config"
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 var (
 	cfgDir   string
+	langFlag string
 	cfg      config.Config
 	registry config.Registry
 
@@ -21,15 +24,22 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "githand",
-	Short: "Git workspace sync and migration CLI",
-	Long:  "Scan directories for git repos, display multi-repo status, snapshot state, and restore on another machine.",
+	Use:           "githand",
+	Short:         i18n.T("root.short"),
+	Long:          i18n.T("root.long"),
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if langFlag != "" {
+			i18n.SetLocale(langFlag)
+			applyTranslations(cmd.Root())
+		}
+	},
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgDir, "config-dir", "", "config directory (default: $XDG_CONFIG_HOME/githand)")
+	rootCmd.PersistentFlags().StringVar(&cfgDir, "config-dir", "", i18n.T("root.flag.config-dir"))
+	rootCmd.PersistentFlags().StringVar(&langFlag, "lang", "", i18n.T("root.flag.lang"))
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(snapshotCmd)
@@ -42,9 +52,93 @@ func init() {
 }
 
 func main() {
+	// Pre-parse --lang so locale is set before cobra generates help text.
+	// This handles the case where --help is passed, which skips PersistentPreRun.
+	for i, arg := range os.Args {
+		if arg == "--lang" && i+1 < len(os.Args) {
+			i18n.SetLocale(os.Args[i+1])
+			applyTranslations(rootCmd)
+			break
+		}
+		if strings.HasPrefix(arg, "--lang=") {
+			i18n.SetLocale(strings.TrimPrefix(arg, "--lang="))
+			applyTranslations(rootCmd)
+			break
+		}
+	}
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+// applyTranslations re-applies i18n strings to all cobra commands
+// after a locale switch via --lang.
+func applyTranslations(root *cobra.Command) {
+	root.Short = i18n.T("root.short")
+	root.Long = i18n.T("root.long")
+	translateFlags(root, map[string]string{
+		"config-dir": "root.flag.config-dir",
+		"lang":       "root.flag.lang",
+	})
+	for _, sub := range root.Commands() {
+		switch sub.Name() {
+		case "scan":
+			sub.Short = i18n.T("scan.short")
+			translateFlags(sub, map[string]string{
+				"recursive":  "scan.flag.recurse",
+				"auto-group": "scan.flag.group",
+			})
+		case "status":
+			sub.Short = i18n.T("status.short")
+			translateFlags(sub, map[string]string{
+				"filter": "status.flag.filter",
+				"group":  "status.flag.group",
+				"user":   "status.flag.owner",
+				"json":   "status.flag.json",
+			})
+		case "snapshot":
+			sub.Short = i18n.T("snapshot.short")
+			translateFlags(sub, map[string]string{
+				"output": "snapshot.flag.output",
+				"group":  "snapshot.flag.group",
+				"filter": "snapshot.flag.filter",
+			})
+		case "restore":
+			sub.Short = i18n.T("restore.short")
+			translateFlags(sub, map[string]string{
+				"base-path": "restore.flag.base-path",
+				"dry-run":   "restore.flag.dry-run",
+			})
+		case "ls":
+			sub.Short = i18n.T("ls.short")
+		case "rm":
+			sub.Short = i18n.T("rm.short")
+		case "group":
+			sub.Short = i18n.T("group.short")
+			for _, gsub := range sub.Commands() {
+				switch gsub.Name() {
+				case "add":
+					gsub.Short = i18n.T("group.add.short")
+				case "rm":
+					gsub.Short = i18n.T("group.rm.short")
+				case "ls":
+					gsub.Short = i18n.T("group.ls.short")
+				}
+			}
+		}
+	}
+}
+
+// translateFlags updates the usage text of named flags.
+func translateFlags(cmd *cobra.Command, flagKeys map[string]string) {
+	for name, key := range flagKeys {
+		if f := cmd.Flags().Lookup(name); f != nil {
+			f.Usage = i18n.T(key)
+		}
+		if f := cmd.PersistentFlags().Lookup(name); f != nil {
+			f.Usage = i18n.T(key)
+		}
 	}
 }
 
