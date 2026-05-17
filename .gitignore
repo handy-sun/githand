@@ -1,5 +1,6 @@
 # Go build output
 bin/
+/githand
 
 # Go test/cache
 *.test
