@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/handy-sun/githand/internal/git"
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/handy-sun/githand/internal/snapshot"
 )
 
@@ -29,13 +30,13 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 		effectiveBase = basePath
 	}
 
-	fmt.Printf("Restoring %d repos from %s into %s\n", len(snap.Repos), snapPath, targetDir)
+	fmt.Println(i18n.Tf("restore.progress", len(snap.Repos), snapPath, targetDir))
 
 	for _, rs := range snap.Repos {
 		repoDir := filepath.Join(targetDir, rs.RelPath)
 
 		if dryRun {
-			fmt.Printf("  [dry-run] would restore %s -> %s\n", rs.Name, repoDir)
+fmt.Println(i18n.Tf("restore.dry_run", rs.Name, repoDir))
 			continue
 		}
 
@@ -43,7 +44,7 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 			fmt.Fprintf(os.Stderr, "  warning: restore %s failed: %v\n", rs.Name, err)
 			continue
 		}
-		fmt.Printf("  restored %s\n", rs.Name)
+		fmt.Println(i18n.Tf("restore.restored", rs.Name))
 
 		_ = effectiveBase // used for path remapping
 	}

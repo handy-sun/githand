@@ -7,6 +7,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/handy-sun/githand/internal/status"
 )
 
@@ -20,16 +21,16 @@ func Status(results []status.RepoStatus, asJSON bool) error {
 
 func statusTable(results []status.RepoStatus) error {
 	if len(results) == 0 {
-		fmt.Println("No repositories registered.")
+		fmt.Println(i18n.T("display.no_repos"))
 		return nil
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "REPO\tBRANCH\tSTATUS\tAHEAD\tBEHIND\tSTASH")
+	fmt.Fprintln(w, i18n.T("display.header"))
 	for _, s := range results {
-		state := "clean"
+		state := i18n.T("display.clean")
 		if s.Dirty {
-			state = "dirty"
+			state = i18n.T("display.dirty")
 		}
 		branch := s.Branch
 		if s.Detached {
