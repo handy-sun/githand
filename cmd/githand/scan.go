@@ -97,6 +97,6 @@ var scanCmd = &cobra.Command{
 }
 
 func init() {
-	scanCmd.Flags().BoolVar(&scanRecursive, "recursive", true, i18n.T("scan.flag.recurse"))
+	scanCmd.Flags().BoolVarP(&scanRecursive, "recursive", "r", false, i18n.T("scan.flag.recurse"))
 	scanCmd.Flags().BoolVar(&scanAutoGroup, "auto-group", true, i18n.T("scan.flag.group"))
 }

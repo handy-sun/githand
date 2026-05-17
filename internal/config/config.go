@@ -63,7 +63,7 @@ func DefaultConfig() Config {
 	return Config{
 		Version: 1,
 		Scan: ScanConfig{
-			Recursive: true,
+			Recursive: false,
 			AutoGroup: true,
 		},
 		Status: StatusConf{
