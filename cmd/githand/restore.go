@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/handy-sun/githand/internal/restore"
 	"github.com/spf13/cobra"
 )
@@ -12,7 +13,7 @@ var (
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore <snapshot.json> <target_dir>",
-	Short: "Restore repos from a snapshot",
+	Short: i18n.T("restore.short"),
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		snapPath := args[0]
@@ -30,6 +31,6 @@ var restoreCmd = &cobra.Command{
 }
 
 func init() {
-	restoreCmd.Flags().StringVar(&restoreBasePath, "base-path", "", "remap base path for restored repos")
-	restoreCmd.Flags().BoolVar(&restoreDryRun, "dry-run", false, "show what would be done without making changes")
+	restoreCmd.Flags().StringVar(&restoreBasePath, "base-path", "", i18n.T("restore.flag.base-path"))
+	restoreCmd.Flags().BoolVar(&restoreDryRun, "dry-run", false, i18n.T("restore.flag.dry-run"))
 }

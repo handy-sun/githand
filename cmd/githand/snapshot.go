@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/handy-sun/githand/internal/snapshot"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,7 @@ var (
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
-	Short: "Snapshot all registered repos",
+	Short: i18n.T("snapshot.short"),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, cfg, reg := mustLoadConfig()
 
@@ -51,13 +52,13 @@ var snapshotCmd = &cobra.Command{
 			return fmt.Errorf("write snapshot: %w", err)
 		}
 
-		fmt.Printf("Snapshot written to %s (%d repos)\n", outPath, len(snap.Repos))
+		fmt.Println(i18n.Tf("snapshot.written", outPath, len(snap.Repos)))
 		return nil
 	},
 }
 
 func init() {
-	snapshotCmd.Flags().StringVarP(&snapshotOutput, "output", "o", "", "output file path")
-	snapshotCmd.Flags().StringVar(&snapshotGroup, "group", "", "snapshot only repos in this group")
-	snapshotCmd.Flags().StringVar(&snapshotFilter, "filter", "", "snapshot only matching repos (dirty, ahead, stash, detached)")
+	snapshotCmd.Flags().StringVarP(&snapshotOutput, "output", "o", "", i18n.T("snapshot.flag.output"))
+	snapshotCmd.Flags().StringVar(&snapshotGroup, "group", "", i18n.T("snapshot.flag.group"))
+	snapshotCmd.Flags().StringVar(&snapshotFilter, "filter", "", i18n.T("snapshot.flag.filter"))
 }

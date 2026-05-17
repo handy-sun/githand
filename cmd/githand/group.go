@@ -4,17 +4,18 @@ import (
 	"fmt"
 
 	"github.com/handy-sun/githand/internal/config"
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 var groupCmd = &cobra.Command{
 	Use:   "group",
-	Short: "Manage repo groups",
+	Short: i18n.T("group.short"),
 }
 
 var groupAddCmd = &cobra.Command{
 	Use:   "add <group> <repos...>",
-	Short: "Add repos to a group",
+	Short: i18n.T("group.add.short"),
 	Args:  cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		group := args[0]
@@ -47,14 +48,14 @@ var groupAddCmd = &cobra.Command{
 			return fmt.Errorf("save registry: %w", err)
 		}
 
-		fmt.Printf("Added %d repo(s) to group %q.\n", len(repoNames), group)
+		fmt.Println(i18n.Tf("group.added", len(repoNames), group))
 		return nil
 	},
 }
 
 var groupRmCmd = &cobra.Command{
 	Use:   "rm <group>",
-	Short: "Remove a group",
+	Short: i18n.T("group.rm.short"),
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		group := args[0]
@@ -79,18 +80,18 @@ var groupRmCmd = &cobra.Command{
 			return fmt.Errorf("save registry: %w", err)
 		}
 
-		fmt.Printf("Removed group %q.\n", group)
+		fmt.Println(i18n.Tf("group.removed", group))
 		return nil
 	},
 }
 
 var groupLsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List all groups",
+	Short: i18n.T("group.ls.short"),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, _, reg := mustLoadConfig()
 		if len(reg.Groups) == 0 {
-			fmt.Println("No groups defined.")
+			fmt.Println(i18n.T("group.none_defined"))
 			return nil
 		}
 		for name, members := range reg.Groups {

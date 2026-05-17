@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/handy-sun/githand/internal/config"
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 var rmCmd = &cobra.Command{
-	Use:   "rm <name>",
-	Short: "Remove a repo from the registry",
+	Use:   "rm <repo_name>",
+	Short: i18n.T("rm.short"),
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -36,7 +37,7 @@ var rmCmd = &cobra.Command{
 			return fmt.Errorf("save registry: %w", err)
 		}
 
-		fmt.Printf("Removed %q from registry.\n", name)
+		fmt.Println(i18n.Tf("rm.removed", name))
 		return nil
 	},
 }

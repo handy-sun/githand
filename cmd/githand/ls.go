@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
 var lsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List registered repo names",
+	Short: i18n.T("ls.short"),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, _, reg := mustLoadConfig()
 		for _, repo := range reg.Repos {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/handy-sun/githand/internal/config"
 	"github.com/handy-sun/githand/internal/discover"
+	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +18,7 @@ var (
 
 var scanCmd = &cobra.Command{
 	Use:   "scan <path>",
-	Short: "Scan a directory for git repos and register them",
+	Short: i18n.T("scan.short"),
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scanPath, err := filepath.Abs(args[0])
@@ -52,7 +53,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		if len(found) == 0 {
-			fmt.Println("No git repositories found.")
+			fmt.Println(i18n.T("scan.none_found"))
 			return nil
 		}
 
@@ -90,12 +91,12 @@ var scanCmd = &cobra.Command{
 			return fmt.Errorf("save registry: %w", err)
 		}
 
-		fmt.Printf("Scanned %s: %d repos found, %d new added.\n", scanPath, len(found), added)
+		fmt.Println(i18n.Tf("scan.result", scanPath, len(found), added))
 		return nil
 	},
 }
 
 func init() {
-	scanCmd.Flags().BoolVar(&scanRecursive, "recursive", true, "scan subdirectories recursively")
-	scanCmd.Flags().BoolVar(&scanAutoGroup, "auto-group", true, "auto-create groups by subdirectory name")
+	scanCmd.Flags().BoolVar(&scanRecursive, "recursive", true, i18n.T("scan.flag.recurse"))
+	scanCmd.Flags().BoolVar(&scanAutoGroup, "auto-group", true, i18n.T("scan.flag.group"))
 }
