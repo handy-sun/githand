@@ -78,7 +78,7 @@ func TestSetLocale(t *testing.T) {
 
 func TestT(t *testing.T) {
 	once = sync.Once{}
-	current = "en"
+	SetLocale("en")
 
 	// English
 	if got := T("root.short"); got != "Git workspace sync and migration CLI" {
@@ -99,8 +99,6 @@ func TestT(t *testing.T) {
 
 func TestTf(t *testing.T) {
 	once = sync.Once{}
-	current = "en"
-
 	SetLocale("zh")
 	got := Tf("scan.result", "/Users/qi/work", 35, 3)
 	want := "已扫描 /Users/qi/work：发现 35 个仓库，新增 3 个。"

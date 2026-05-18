@@ -234,6 +234,17 @@ func TestRestoreNestedPaths(t *testing.T) {
 	gitCmd(t, agentDir, "add", "README.md")
 	gitCmd(t, agentDir, "commit", "-m", "initial")
 
+	// create bare clones as remotes (needed for restore to clone)
+	nixBare := filepath.Join(parent, "expnix.git")
+	gitCmd(t, parent, "clone", "--bare", nixDir, nixBare)
+	gitCmd(t, nixDir, "remote", "add", "origin", nixBare)
+	gitCmd(t, nixDir, "push", "-u", "origin", "HEAD")
+
+	agentBare := filepath.Join(parent, "githand.git")
+	gitCmd(t, parent, "clone", "--bare", agentDir, agentBare)
+	gitCmd(t, agentDir, "remote", "add", "origin", agentBare)
+	gitCmd(t, agentDir, "push", "-u", "origin", "HEAD")
+
 	reg := &config.Registry{
 		Version:  1,
 		BasePath: parent,
@@ -294,7 +305,7 @@ func initWorkRepo(t *testing.T, name string) string {
 	bareDir := filepath.Join(parent, name + ".git")
 	gitCmd(t, parent, "clone", "--bare", workDir, bareDir)
 	gitCmd(t, workDir, "remote", "add", "origin", bareDir)
-	gitCmd(t, workDir, "push", "-u", "origin", "main")
+	gitCmd(t, workDir, "push", "-u", "origin", "HEAD")
 
 	return workDir
 }

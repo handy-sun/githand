@@ -31,6 +31,7 @@ func Locale() string {
 // SetLocale forces the active locale. Call this before any T/Tf calls
 // (e.g. from the --lang flag in cobra's PersistentPreRun).
 func SetLocale(lang string) {
+	once.Do(func() {}) // mark as done so detectLocale won't override
 	lang = strings.ToLower(strings.TrimSpace(lang))
 	if _, ok := catalogs[lang]; ok {
 		current = lang
@@ -40,9 +41,15 @@ func SetLocale(lang string) {
 }
 
 // detectLocale picks a locale from env vars, preferring GITHAND_LANG over LANG.
+// Called inside sync.Once — must not call SetLocale (which also calls sync.Once).
 func detectLocale() {
 	if v := os.Getenv("GITHAND_LANG"); v != "" {
-		SetLocale(v)
+		v = strings.ToLower(strings.TrimSpace(v))
+		if _, ok := catalogs[v]; ok {
+			current = v
+		} else {
+			current = "en"
+		}
 		return
 	}
 	lang := os.Getenv("LANG")
