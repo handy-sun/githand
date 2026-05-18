@@ -12,7 +12,7 @@ var (
 )
 
 var restoreCmd = &cobra.Command{
-	Use:   "restore <snapshot.json> <target_dir>",
+	Use:   "restore <snapshot> <target_dir>",
 	Short: i18n.T("restore.short"),
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
