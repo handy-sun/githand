@@ -4,6 +4,7 @@ package restore
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -12,9 +13,16 @@ import (
 	"github.com/handy-sun/githand/internal/snapshot"
 )
 
-// Run restores repos from a snapshot JSON file into targetDir.
+// Run restores repos from a snapshot into targetDir.
+// snapPath can be either a directory (containing snapshot.json) or a direct .json file.
 func Run(snapPath, targetDir, basePath string, dryRun bool) error {
-	data, err := os.ReadFile(snapPath)
+	// resolve snapshot JSON path (dir or file)
+	jsonPath, err := snapshot.ResolveSnapshotPath(snapPath)
+	if err != nil {
+		return fmt.Errorf("resolve snapshot: %w", err)
+	}
+
+	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return fmt.Errorf("read snapshot: %w", err)
 	}
@@ -30,17 +38,20 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 		effectiveBase = basePath
 	}
 
+	// snapshot directory (parent of snapshot.json)
+	snapDir := filepath.Dir(jsonPath)
+
 	fmt.Println(i18n.Tf("restore.progress", len(snap.Repos), snapPath, targetDir))
 
 	for _, rs := range snap.Repos {
 		repoDir := filepath.Join(targetDir, rs.RelPath)
 
 		if dryRun {
-fmt.Println(i18n.Tf("restore.dry_run", rs.Name, repoDir))
+			fmt.Println(i18n.Tf("restore.dry_run", rs.Name, repoDir))
 			continue
 		}
 
-		if err := restoreRepo(rs, repoDir); err != nil {
+		if err := restoreRepo(rs, repoDir, snapDir); err != nil {
 			fmt.Fprintf(os.Stderr, "  warning: restore %s failed: %v\n", rs.Name, err)
 			continue
 		}
@@ -52,7 +63,7 @@ fmt.Println(i18n.Tf("restore.dry_run", rs.Name, repoDir))
 	return nil
 }
 
-func restoreRepo(rs snapshot.RepoSnap, targetDir string) error {
+func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 	// ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0o755); err != nil {
 		return fmt.Errorf("create parent dir: %w", err)
@@ -101,8 +112,44 @@ func restoreRepo(rs snapshot.RepoSnap, targetDir string) error {
 		}
 	}
 
-	// untracked archives extraction is handled by the data directory
-	// (to be implemented with tar.gz extraction)
+	// copy untracked files from snapshot's untracked/<repo>/ directory
+	if len(rs.Untracked) > 0 {
+		untrackedDir := filepath.Join(snapDir, "untracked", rs.Name)
+		for _, file := range rs.Untracked {
+			src := filepath.Join(untrackedDir, file)
+			dst := filepath.Join(targetDir, file)
+			if err := copyFile(src, dst); err != nil {
+				fmt.Fprintf(os.Stderr, "    warning: restore untracked %s: %v\n", file, err)
+			}
+		}
+	}
 
 	return nil
+}
+
+// copyFile copies a single file, creating parent directories as needed.
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	return os.Chmod(dst, info.Mode())
 }

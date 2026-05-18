@@ -16,7 +16,7 @@ import (
 func TestRestoreCleanRepo(t *testing.T) {
 	bareDir := initBareRepo(t, "source-repo")
 	commit := getHEAD(t, bareDir)
-	snapPath, _ := writeTestSnapshot(t, snapshot.RepoSnap{
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
 		Name:          "source-repo",
 		RelPath:       "source-repo",
 		CurrentBranch: "main",
@@ -34,6 +34,34 @@ func TestRestoreCleanRepo(t *testing.T) {
 	}
 
 	repoDir := filepath.Join(targetDir, "source-repo")
+	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err != nil {
+		t.Errorf("restored repo should exist: %v", err)
+	}
+}
+
+// TestRestoreFromDirectory verifies that a snapshot directory works as input.
+func TestRestoreFromDirectory(t *testing.T) {
+	bareDir := initBareRepo(t, "dir-repo")
+	commit := getHEAD(t, bareDir)
+	// writeTestSnapshot returns the directory path
+	snapDir := writeTestSnapshot(t, snapshot.RepoSnap{
+		Name:          "dir-repo",
+		RelPath:       "dir-repo",
+		CurrentBranch: "main",
+		HeadCommit:    commit,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	})
+
+	targetDir, _ := os.MkdirTemp("", "githand-restore-test-")
+	defer os.RemoveAll(targetDir)
+
+	// pass the directory path (not the json file) — should find snapshot.json inside
+	err := Run(snapDir, targetDir, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repoDir := filepath.Join(targetDir, "dir-repo")
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err != nil {
 		t.Errorf("restored repo should exist: %v", err)
 	}
@@ -60,20 +88,20 @@ func TestRestoreWithPatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// write snapshot to temp file
+	// write snapshot to temp directory using the new folder structure
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-patch-")
 	defer os.RemoveAll(tmpDir)
-	snapPath := filepath.Join(tmpDir, "snap.json")
-	dataDir := snapshot.DataDirPath(snapPath)
-	os.MkdirAll(dataDir, 0o755)
-	data, _ := json.MarshalIndent(snap, "", "  ")
-	os.WriteFile(snapPath, data, 0o644)
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
 
 	// restore into a new target
 	targetDir, _ := os.MkdirTemp("", "githand-restore-target-")
 	defer os.RemoveAll(targetDir)
 
-	err = Run(snapPath, targetDir, "", false)
+	// pass directory path
+	err = Run(snapDir, targetDir, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +120,7 @@ func TestRestoreWithPatch(t *testing.T) {
 func TestRestoreDryRun(t *testing.T) {
 	bareDir := initBareRepo(t, "dryrun-repo")
 	commit := getHEAD(t, bareDir)
-	snapPath, _ := writeTestSnapshot(t, snapshot.RepoSnap{
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
 		Name:          "dryrun-repo",
 		RelPath:       "dryrun-repo",
 		CurrentBranch: "main",
@@ -118,7 +146,7 @@ func TestRestoreDryRun(t *testing.T) {
 func TestRestoreDetachedHEAD(t *testing.T) {
 	bareDir := initBareRepo(t, "detached-repo")
 	commit := getHEAD(t, bareDir)
-	snapPath, _ := writeTestSnapshot(t, snapshot.RepoSnap{
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
 		Name:       "detached-repo",
 		RelPath:    "detached-repo",
 		Detached:   true,
@@ -162,16 +190,15 @@ func TestRestoreWithStash(t *testing.T) {
 
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-stash-")
 	defer os.RemoveAll(tmpDir)
-	snapPath := filepath.Join(tmpDir, "snap.json")
-	dataDir := snapshot.DataDirPath(snapPath)
-	os.MkdirAll(dataDir, 0o755)
-	data, _ := json.MarshalIndent(snap, "", "  ")
-	os.WriteFile(snapPath, data, 0o644)
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
 
 	targetDir, _ := os.MkdirTemp("", "githand-restore-target-")
 	defer os.RemoveAll(targetDir)
 
-	err = Run(snapPath, targetDir, "", false)
+	err = Run(snapDir, targetDir, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,16 +250,15 @@ func TestRestoreNestedPaths(t *testing.T) {
 
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-nested-snap-")
 	defer os.RemoveAll(tmpDir)
-	snapPath := filepath.Join(tmpDir, "snap.json")
-	dataDir := snapshot.DataDirPath(snapPath)
-	os.MkdirAll(dataDir, 0o755)
-	data, _ := json.MarshalIndent(snap, "", "  ")
-	os.WriteFile(snapPath, data, 0o644)
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
 
 	targetDir, _ := os.MkdirTemp("", "githand-restore-target-")
 	defer os.RemoveAll(targetDir)
 
-	err = Run(snapPath, targetDir, "", false)
+	err = Run(snapDir, targetDir, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +310,7 @@ func initBareRepo(t *testing.T, name string) string {
 	gitCmd(t, workDir, "init")
 	gitCmd(t, workDir, "config", "user.email", "test@test.com")
 	gitCmd(t, workDir, "config", "user.name", "Test")
-	os.WriteFile(filepath.Join(workDir, "README.md"), []byte("hello"), 0o644)
+	os.WriteFile(filepath.Join(workDir, "README.md"), []byte("hello\n"), 0o644)
 	gitCmd(t, workDir, "add", "README.md")
 	gitCmd(t, workDir, "commit", "-m", "initial")
 
@@ -298,7 +324,9 @@ func getHEAD(t *testing.T, bareDir string) string {
 	return gitOut(t, bareDir, "rev-parse", "HEAD")
 }
 
-func writeTestSnapshot(t *testing.T, rs snapshot.RepoSnap) (string, string) {
+// writeTestSnapshot creates a snapshot directory with snapshot.json inside.
+// Returns the directory path (suitable for passing to Run as snapPath).
+func writeTestSnapshot(t *testing.T, rs snapshot.RepoSnap) string {
 	t.Helper()
 	tmpDir, _ := os.MkdirTemp("", "githand-snap-file-")
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
@@ -309,14 +337,15 @@ func writeTestSnapshot(t *testing.T, rs snapshot.RepoSnap) (string, string) {
 		Repos:    []snapshot.RepoSnap{rs},
 	}
 
-	snapPath := filepath.Join(tmpDir, "test-snapshot.json")
-	dataDir := snapshot.DataDirPath(snapPath)
+	// write snapshot.json inside the temp directory
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+	os.MkdirAll(snapDir, 0o755)
+	jsonPath := filepath.Join(snapDir, snapshot.SnapshotJSONName)
 
 	data, _ := json.MarshalIndent(snap, "", "  ")
-	os.WriteFile(snapPath, data, 0o644)
-	os.MkdirAll(dataDir, 0o755)
+	os.WriteFile(jsonPath, data, 0o644)
 
-	return snapPath, dataDir
+	return snapDir
 }
 
 func gitCmd(t *testing.T, dir string, args ...string) {
