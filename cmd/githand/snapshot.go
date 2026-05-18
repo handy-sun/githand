@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/handy-sun/githand/internal/i18n"
 	"github.com/handy-sun/githand/internal/snapshot"
@@ -22,11 +22,13 @@ var snapshotCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, cfg, reg := mustLoadConfig()
 
-		// determine output path
-		outPath := snapshotOutput
-		if outPath == "" {
-			ts := time.Now().Format("20060102-150405")
-			outPath = filepath.Join(".", fmt.Sprintf("workspace-snapshot-%s.json", ts))
+		// determine output directory
+		snapDir := snapshotOutput
+		if snapDir == "" {
+			parentDir := expandHome(cfg.Snapshot.OutputDir)
+			snapDir = snapshot.DefaultSnapshotDir(parentDir)
+		} else {
+			snapDir = expandHome(snapDir)
 		}
 
 		// select repos
@@ -46,13 +48,12 @@ var snapshotCmd = &cobra.Command{
 			snap.Repos = snapshot.Filter(snap.Repos, snapshotFilter)
 		}
 
-		// write JSON
-		dataDir := snapshot.DataDirPath(outPath)
-		if err := snapshot.Write(snap, outPath, dataDir); err != nil {
+		// write snapshot folder
+		if err := snapshot.Write(snap, snapDir, reg.BasePath); err != nil {
 			return fmt.Errorf("write snapshot: %w", err)
 		}
 
-		fmt.Println(i18n.Tf("snapshot.written", outPath, len(snap.Repos)))
+		fmt.Println(i18n.Tf("snapshot.written", snapDir, len(snap.Repos)))
 		return nil
 	},
 }
@@ -61,4 +62,16 @@ func init() {
 	snapshotCmd.Flags().StringVarP(&snapshotOutput, "output", "o", "", i18n.T("snapshot.flag.output"))
 	snapshotCmd.Flags().StringVar(&snapshotGroup, "group", "", i18n.T("snapshot.flag.group"))
 	snapshotCmd.Flags().StringVar(&snapshotFilter, "filter", "", i18n.T("snapshot.flag.filter"))
+}
+
+// expandHome replaces a leading ~ with the user's home directory.
+func expandHome(path string) string {
+	if len(path) > 0 && path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(home, path[1:])
+	}
+	return path
 }

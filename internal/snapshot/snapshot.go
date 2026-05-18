@@ -2,8 +2,6 @@
 package snapshot
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,30 +16,29 @@ import (
 
 // Snapshot is the top-level JSON manifest.
 type Snapshot struct {
-	Schema    int        `json:"schema"`
-	CreatedAt string     `json:"created_at"`
-	Host      string     `json:"host"`
-	BasePath  string     `json:"base_path"`
-	Repos     []RepoSnap `json:"repos"`
+	Schema    int               `json:"schema"`
+	CreatedAt string            `json:"created_at"`
+	Host      string            `json:"host"`
+	BasePath  string            `json:"base_path"`
+	Repos     []RepoSnap        `json:"repos"`
 	Groups    map[string][]string `json:"groups,omitempty"`
 }
 
 // RepoSnap holds the captured state of a single repo.
 type RepoSnap struct {
-	Name         string      `json:"name"`
-	RelPath      string      `json:"rel_path"`
-	Group        string      `json:"group,omitempty"`
-	Remotes      []RemoteSnap `json:"remotes"`
-	Branches     []BranchSnap `json:"branches"`
-	CurrentBranch string     `json:"current_branch,omitempty"`
-	HeadCommit   string      `json:"head_commit"`
-	Detached     bool        `json:"detached"`
-	Dirty        bool        `json:"dirty"`
-	StagedPatch  string      `json:"staged_patch,omitempty"`
-	UnstagedPatch string     `json:"unstaged_patch,omitempty"`
-	Stashes      []StashSnap `json:"stashes,omitempty"`
-	Untracked    []string    `json:"untracked,omitempty"`
-	UntrackedArchive string  `json:"untracked_archive,omitempty"`
+	Name          string       `json:"name"`
+	RelPath       string       `json:"rel_path"`
+	Group         string       `json:"group,omitempty"`
+	Remotes       []RemoteSnap `json:"remotes"`
+	Branches      []BranchSnap `json:"branches"`
+	CurrentBranch string       `json:"current_branch,omitempty"`
+	HeadCommit    string       `json:"head_commit"`
+	Detached      bool         `json:"detached"`
+	Dirty         bool         `json:"dirty"`
+	StagedPatch   string       `json:"staged_patch,omitempty"`
+	UnstagedPatch string       `json:"unstaged_patch,omitempty"`
+	Stashes       []StashSnap  `json:"stashes,omitempty"`
+	Untracked     []string     `json:"untracked,omitempty"`
 }
 
 type RemoteSnap struct {
@@ -57,6 +54,39 @@ type BranchSnap struct {
 type StashSnap struct {
 	Ref   string `json:"ref"`
 	Patch string `json:"patch"`
+}
+
+// SnapshotJSONName is the fixed filename for the snapshot manifest inside a snapshot folder.
+const SnapshotJSONName = "snapshot.json"
+
+// DefaultSnapshotDir generates a snapshot folder path under parentDir.
+// Folder name format: githand-snapshot.MMDD-HHmmss
+func DefaultSnapshotDir(parentDir string) string {
+	ts := time.Now().Format("0102-150405")
+	name := fmt.Sprintf("githand-snapshot.%s", ts)
+	return filepath.Join(parentDir, name)
+}
+
+// ResolveSnapshotPath accepts either a directory (containing snapshot.json)
+// or a direct .json file path. Returns the absolute path to the JSON file.
+func ResolveSnapshotPath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve path: %w", err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("stat %s: %w", path, err)
+	}
+	if info.IsDir() {
+		jsonPath := filepath.Join(abs, SnapshotJSONName)
+		if _, err := os.Stat(jsonPath); err != nil {
+			return "", fmt.Errorf("snapshot.json not found in %s: %w", abs, err)
+		}
+		return jsonPath, nil
+	}
+	// it's a file — use directly (backward compat with old-style standalone json)
+	return abs, nil
 }
 
 // Take creates a snapshot for the given repos.
@@ -197,16 +227,15 @@ func relPath(base, path string) string {
 	return filepath.ToSlash(rel)
 }
 
-// DataDirPath returns the sibling data directory for a snapshot JSON file.
-func DataDirPath(jsonPath string) string {
-	ext := filepath.Ext(jsonPath)
-	base := jsonPath[:len(jsonPath)-len(ext)]
-	return base + "-data"
-}
+// Write saves the snapshot into the given directory.
+// It creates snapshot.json and copies untracked files into untracked/<repo>/.
+func Write(snap *Snapshot, dir string, basePath string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create snapshot dir: %w", err)
+	}
 
-// Write saves the snapshot JSON and archives untracked files.
-func Write(snap *Snapshot, jsonPath, dataDir string) error {
 	// write JSON
+	jsonPath := filepath.Join(dir, SnapshotJSONName)
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
@@ -215,50 +244,55 @@ func Write(snap *Snapshot, jsonPath, dataDir string) error {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 
-	// archive untracked files per repo
+	// copy untracked files per repo
 	for _, rs := range snap.Repos {
 		if len(rs.Untracked) == 0 {
 			continue
 		}
-		archiveName := rs.Name + ".tar.gz"
-		rs.UntrackedArchive = archiveName
-
-		untrackedDir := filepath.Join(dataDir, "untracked")
+		repoAbsPath := filepath.Join(basePath, filepath.FromSlash(rs.RelPath))
+		untrackedDir := filepath.Join(dir, "untracked", rs.Name)
 		if err := os.MkdirAll(untrackedDir, 0o755); err != nil {
 			return fmt.Errorf("create untracked dir: %w", err)
 		}
-
-		archivePath := filepath.Join(untrackedDir, archiveName)
-		if err := tarGzUntracked(rs, archivePath); err != nil {
-			return fmt.Errorf("archive untracked for %s: %w", rs.Name, err)
+		for _, file := range rs.Untracked {
+			src := filepath.Join(repoAbsPath, file)
+			dst := filepath.Join(untrackedDir, file)
+			if err := copyFile(src, dst); err != nil {
+				// log warning but don't fail the whole snapshot
+				fmt.Fprintf(os.Stderr, "  warning: copy untracked %s: %v\n", file, err)
+			}
 		}
 	}
 
 	return nil
 }
 
-func tarGzUntracked(rs RepoSnap, archivePath string) error {
-	f, err := os.Create(archivePath)
+// copyFile copies a single file, creating parent directories as needed.
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer in.Close()
 
-	gw := gzip.NewWriter(f)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
 
-	// we need the repo's absolute path to read files
-	// this is reconstructed at restore time from base_path + rel_path
-	// during snapshot, we look up the repo by name in the registry
-	// For now, we skip the actual archiving here — it requires the repo's
-	// absolute path which we need to pass through. This will be wired up
-	// when integrating with the scan command.
-	_ = tw
-	_ = io.Copy
-
-	return nil
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	// preserve permissions
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	return os.Chmod(dst, info.Mode())
 }
 
 // Filter removes repos from a snapshot that don't match the given filter.

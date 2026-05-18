@@ -30,7 +30,7 @@ var en = map[string]string{
 
 	// snapshot
 	"snapshot.short":       "Snapshot all registered repos",
-	"snapshot.flag.output": "output file path",
+	"snapshot.flag.output": "snapshot directory path",
 	"snapshot.flag.group":  "snapshot only repos in this group",
 	"snapshot.flag.filter": "snapshot only matching repos (dirty, ahead, stash, detached)",
 	"snapshot.written":     "Snapshot written to %s (%d repos)",

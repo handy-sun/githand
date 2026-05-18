@@ -23,7 +23,7 @@ var zh = map[string]string{
 
 	// snapshot
 	"snapshot.short":       "快照所有已注册仓库",
-	"snapshot.flag.output": "输出文件路径",
+	"snapshot.flag.output": "快照目录路径",
 	"snapshot.flag.group":  "仅快照此分组中的仓库",
 	"snapshot.flag.filter": "仅快照匹配的仓库 (dirty, ahead, stash, detached)",
 	"snapshot.written":     "快照已写入 %s（%d 个仓库）",

@@ -172,13 +172,13 @@ func TestSnapshotWriteJSON(t *testing.T) {
 
 	tmpDir, _ := os.MkdirTemp("", "githand-snap-test-")
 	defer os.RemoveAll(tmpDir)
-	jsonPath := filepath.Join(tmpDir, "test-snapshot.json")
-	dataDir := DataDirPath(jsonPath)
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
 
-	if err := Write(snap, jsonPath, dataDir); err != nil {
+	if err := Write(snap, snapDir, parent); err != nil {
 		t.Fatal(err)
 	}
 
+	jsonPath := filepath.Join(snapDir, SnapshotJSONName)
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		t.Fatal(err)
@@ -251,6 +251,47 @@ func TestRelPath(t *testing.T) {
 	r = relPath("/Users/qi/work", "/Users/qi/work/nix/expnix")
 	if r != "nix/expnix" {
 		t.Errorf("expected nix/expnix, got %s", r)
+	}
+}
+
+func TestWriteUntrackedFiles(t *testing.T) {
+	dir := initTestRepo(t, "repo-ut-write")
+	os.WriteFile(filepath.Join(dir, "newfile.txt"), []byte("hello"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "subdir"), 0o755)
+	os.WriteFile(filepath.Join(dir, "subdir", "nested.txt"), []byte("nested"), 0o644)
+
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-ut-write", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir, _ := os.MkdirTemp("", "githand-ut-test-")
+	defer os.RemoveAll(tmpDir)
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+
+	if err := Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	// verify untracked files are copied directly (not tar.gz)
+	utDir := filepath.Join(snapDir, "untracked", "repo-ut-write")
+	if _, err := os.Stat(filepath.Join(utDir, "newfile.txt")); err != nil {
+		t.Errorf("untracked newfile.txt should be copied: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(utDir, "subdir", "nested.txt")); err != nil {
+		t.Errorf("untracked subdir/nested.txt should be copied: %v", err)
+	}
+
+	// verify no tar.gz archive exists
+	if _, err := os.Stat(filepath.Join(snapDir, "untracked", "repo-ut-write.tar.gz")); !os.IsNotExist(err) {
+		t.Error("tar.gz archive should not exist")
 	}
 }
 
