@@ -14,6 +14,9 @@ GO        := go
 GOFLAGS   := -trimpath
 LDFLAGS   := -s -w
 
+## Test temp directory — all test artifacts go here, not in the repo
+TEST_TMPDIR := /tmp/githand-test
+
 ## Version injection from git (falls back to "dev")
 VERSION   := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT    := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -42,12 +45,12 @@ install: build
 
 .PHONY: test
 test:
-	$(GO) test ./internal/... -count=1 -race
+	mkdir -p $(TEST_TMPDIR) && TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race
 
 .PHONY: coverage
 coverage:
-	$(GO) test ./internal/... -count=1 -race -coverprofile=coverage.out
-	$(GO) tool cover -func=coverage.out
+	mkdir -p $(TEST_TMPDIR) && TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race -coverprofile=$(TEST_TMPDIR)/coverage.out
+	$(GO) tool cover -func=$(TEST_TMPDIR)/coverage.out
 
 ## ── Lint ─────────────────────────────────────────────────
 
@@ -87,8 +90,8 @@ snapshot:
 .PHONY: clean
 clean:
 	rm -rf $(BINDIR)/
-	rm -f coverage.out
-	rm -f dist/
+	rm -f $(TEST_TMPDIR)/coverage.out
+	rm -rf dist/
 
 ## ── Help ─────────────────────────────────────────────────
 
