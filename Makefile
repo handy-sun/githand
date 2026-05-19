@@ -96,6 +96,7 @@ clean:
 help:
 	@echo "githand build targets:"
 	@echo "  make          — build for current platform"
+	@echo "  make install  — cpy binary to $$GOPATH/bin/"
 	@echo "  make test     — run tests (race detector on)"
 	@echo "  make lint     — go vet + staticcheck"
 	@echo "  make cross    — cross-compile all platforms"
