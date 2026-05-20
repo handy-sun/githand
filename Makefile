@@ -2,8 +2,10 @@
 ##
 ## Common targets:
 ##   make            — build for current OS/arch
+##   make fmt        — format Go code
 ##   make test       — run all tests
 ##   make lint       — vet + staticcheck
+##   make install-hooks — configure git hooks for this repo
 ##   make cross      — cross-compile all platforms
 ##   make clean      — remove build artifacts
 
@@ -16,6 +18,7 @@ LDFLAGS   := -s -w
 
 ## Test temp directory — all test artifacts go here, not in the repo
 TEST_TMPDIR := /tmp/githand-test
+GOFMT_FILES := $(shell find cmd internal -name '*.go' -type f | sort)
 
 ## Version injection from git (falls back to "dev")
 VERSION   := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -43,6 +46,20 @@ install: build
 
 ## ── Test ─────────────────────────────────────────────────
 
+.PHONY: fmt
+fmt:
+	gofmt -w $(GOFMT_FILES)
+
+.PHONY: fmt-check
+fmt-check:
+	@files="$$(gofmt -l $(GOFMT_FILES))"; \
+	if [ -n "$$files" ]; then \
+		echo "Go files need formatting:"; \
+		echo "$$files"; \
+		echo "Run: make fmt"; \
+		exit 1; \
+	fi
+
 .PHONY: test
 test:
 	mkdir -p $(TEST_TMPDIR) && TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race
@@ -55,7 +72,7 @@ coverage:
 ## ── Lint ─────────────────────────────────────────────────
 
 .PHONY: lint
-lint: vet staticcheck
+lint: fmt-check vet staticcheck
 
 .PHONY: vet
 vet:
@@ -65,6 +82,11 @@ vet:
 staticcheck:
 	@which staticcheck > /dev/null 2>&1 || (echo "installing staticcheck..." && $(GO) install honnef.co/go/tools/cmd/staticcheck@latest)
 	staticcheck ./...
+
+.PHONY: install-hooks
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured: core.hooksPath=.githooks"
 
 ## ── Cross-compilation ───────────────────────────────────
 
@@ -99,7 +121,10 @@ clean:
 help:
 	@echo "githand build targets:"
 	@echo "  make          — build for current platform"
+	@echo "  make fmt      — format Go code"
+	@echo "  make fmt-check — verify Go formatting"
 	@echo "  make install  — cpy binary to $$GOPATH/bin/"
+	@echo "  make install-hooks — configure git hooks for this repo"
 	@echo "  make test     — run tests (race detector on)"
 	@echo "  make lint     — go vet + staticcheck"
 	@echo "  make cross    — cross-compile all platforms"

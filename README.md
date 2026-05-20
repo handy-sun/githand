@@ -203,8 +203,11 @@ If `base_path` changes (e.g. you rescan from a different directory), stored rela
 
 ```bash
 cd githand
-go build -o bin/githand ./cmd/githand/   # build
-go test ./...                              # test
+make build          # build
+make test           # test
+make fmt            # format Go code
+make fmt-check      # verify Go formatting
+make install-hooks  # enable the pre-commit formatting hook
 ```
 
 Config lives at `~/.config/githand/` by default, or at `GITHAND_HOME` when set. The global config file is `githand.toml`; delete `repos.toml` to reset the registry.

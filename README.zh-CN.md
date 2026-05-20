@@ -203,8 +203,11 @@ githand group ls                       # 列出所有分组
 
 ```bash
 cd githand
-go build -o bin/githand ./cmd/githand/   # 构建
-go test ./...                              # 测试
+make build          # 构建
+make test           # 测试
+make fmt            # 格式化 Go 代码
+make fmt-check      # 检查 Go 代码格式
+make install-hooks  # 启用提交前格式检查 hook
 ```
 
 配置默认位于 `~/.config/githand/`，设置 `GITHAND_HOME` 后改用该目录。全局配置文件名为 `githand.toml`；删除 `repos.toml` 可重置注册表。
