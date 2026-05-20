@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+## pre-commit — Verify code formatting before creating a commit.
+## Usage: git commit
+set -euo pipefail
+
+echo ">>> Checking Go formatting..."
+make fmt-check

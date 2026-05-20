@@ -16,11 +16,11 @@ import (
 
 // Snapshot is the top-level JSON manifest.
 type Snapshot struct {
-	Schema    int               `json:"schema"`
-	CreatedAt string            `json:"created_at"`
-	Host      string            `json:"host"`
-	BasePath  string            `json:"base_path"`
-	Repos     []RepoSnap        `json:"repos"`
+	Schema    int                 `json:"schema"`
+	CreatedAt string              `json:"created_at"`
+	Host      string              `json:"host"`
+	BasePath  string              `json:"base_path"`
+	Repos     []RepoSnap          `json:"repos"`
 	Groups    map[string][]string `json:"groups,omitempty"`
 }
 
@@ -117,9 +117,9 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 func snapshotRepo(basePath string, repo config.Repo) (RepoSnap, error) {
 	dir := repo.Path
 	rs := RepoSnap{
-		Name:     repo.Name,
-		RelPath:  relPath(basePath, dir),
-		Group:    repo.Group,
+		Name:    repo.Name,
+		RelPath: relPath(basePath, dir),
+		Group:   repo.Group,
 	}
 
 	// head

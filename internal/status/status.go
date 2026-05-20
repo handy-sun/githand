@@ -11,15 +11,15 @@ import (
 
 // RepoStatus holds the collected status of a single repository.
 type RepoStatus struct {
-	Repo          config.Repo
-	Branch        string
-	Commit        string
-	Dirty         bool
-	Ahead         int
-	Behind        int
-	StashCount    int
-	Detached      bool
-	Remotes       []RemoteInfo
+	Repo       config.Repo
+	Branch     string
+	Commit     string
+	Dirty      bool
+	Ahead      int
+	Behind     int
+	StashCount int
+	Detached   bool
+	Remotes    []RemoteInfo
 }
 
 // RemoteInfo holds a remote name and URL.

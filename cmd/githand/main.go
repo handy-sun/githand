@@ -15,8 +15,6 @@ import (
 var (
 	cfgDir   string
 	langFlag string
-	cfg      config.Config
-	registry config.Registry
 
 	// Build-time variables injected via -ldflags -X
 	version = "dev"

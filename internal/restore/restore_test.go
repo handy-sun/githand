@@ -302,7 +302,7 @@ func initWorkRepo(t *testing.T, name string) string {
 	gitCmd(t, workDir, "commit", "-m", "initial")
 
 	// create bare clone as "remote"
-	bareDir := filepath.Join(parent, name + ".git")
+	bareDir := filepath.Join(parent, name+".git")
 	gitCmd(t, parent, "clone", "--bare", workDir, bareDir)
 	gitCmd(t, workDir, "remote", "add", "origin", bareDir)
 	gitCmd(t, workDir, "push", "-u", "origin", "HEAD")
@@ -325,7 +325,7 @@ func initBareRepo(t *testing.T, name string) string {
 	gitCmd(t, workDir, "add", "README.md")
 	gitCmd(t, workDir, "commit", "-m", "initial")
 
-	bareDir := filepath.Join(parent, name + ".git")
+	bareDir := filepath.Join(parent, name+".git")
 	gitCmd(t, parent, "clone", "--bare", workDir, bareDir)
 	return bareDir
 }
