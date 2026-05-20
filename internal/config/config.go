@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	EnvCache         = "XDG_CACHE_HOME"
 	EnvHome          = "GITHAND_HOME"
 	ConfigFileName   = "githand.toml"
 	RegistryFileName = "repos.toml"
@@ -33,6 +34,13 @@ func DefaultConfigDir() (string, error) {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
 	return filepath.Join(home, ".config", "githand"), nil
+}
+
+func defaultSnapshotOutputDir() string {
+	if dir := os.Getenv(EnvCache); dir != "" {
+		return filepath.Join(dir, "githand")
+	}
+	return "~/.cache/githand"
 }
 
 // ---------- githand.toml ----------
@@ -78,7 +86,7 @@ func DefaultConfig() Config {
 			JSON:    false,
 		},
 		Snapshot: SnapConfig{
-			OutputDir:    "~/backups/githand",
+			OutputDir:    defaultSnapshotOutputDir(),
 			IncludeClean: true,
 		},
 		Restore: RestoreConf{

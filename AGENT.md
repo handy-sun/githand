@@ -105,7 +105,7 @@ workers = 8
 json = false
 
 [snapshot]
-output_dir = "~/backups/githand"
+output_dir = "~/.cache/githand"
 include_clean = true
 
 [restore]

@@ -34,6 +34,27 @@ func TestDefaultConfigDirFallsBackToHomeDotConfigGithand(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigUsesXDGCacheHomeForSnapshotOutputDir(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", "/tmp/xdg-cache")
+
+	cfg := DefaultConfig()
+
+	expected := filepath.Join("/tmp/xdg-cache", "githand")
+	if cfg.Snapshot.OutputDir != expected {
+		t.Fatalf("expected snapshot output dir %s, got %s", expected, cfg.Snapshot.OutputDir)
+	}
+}
+
+func TestDefaultConfigFallsBackToHomeCacheForSnapshotOutputDir(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", "")
+
+	cfg := DefaultConfig()
+
+	if cfg.Snapshot.OutputDir != "~/.cache/githand" {
+		t.Fatalf("expected snapshot output dir ~/.cache/githand, got %s", cfg.Snapshot.OutputDir)
+	}
+}
+
 func TestConfigRoundTrip(t *testing.T) {
 	dir, err := os.MkdirTemp("", "githand-config-test-")
 	if err != nil {
