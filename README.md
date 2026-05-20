@@ -40,10 +40,10 @@ githand scan ~/work --recursive --auto-group
 githand status
 
 # 3. Snapshot before migrating to a new machine
-githand snapshot -o my-workspace.json
+githand snapshot -o ~/snapshots
 
 # 4. On the new machine, restore everything
-githand restore my-workspace.json ~/work --base-path ~/work
+githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/work
 ```
 
 ## Commands
@@ -96,19 +96,19 @@ githand status --json                  # machine-readable JSON output
 
 ```bash
 githand snapshot                       # snapshot all registered repos
-githand snapshot -o output.json        # custom output path
+githand snapshot -o ~/snapshots        # parent directory for snapshot folders
 githand snapshot --group nix           # only repos in group "nix"
 githand snapshot --filter dirty        # only repos with uncommitted changes
 ```
 
-Produces a JSON file + sibling data directory:
+Produces a timestamped snapshot directory:
 
 ```
-workspace-snapshot-20260515-221241.json       # all metadata + patch text
-workspace-snapshot-20260515-221241-data/      # untracked file tarballs
+githand-snapshot.0515-221241/
+  snapshot.json                               # all metadata + patch text
   untracked/
-    expnix.tar.gz
-    githand.tar.gz
+    expnix/
+    githand/
 ```
 
 **What gets captured per repo:**
@@ -119,7 +119,7 @@ workspace-snapshot-20260515-221241-data/      # untracked file tarballs
 - Staged diff (`git diff --cached`)
 - Unstaged diff (`git diff`)
 - Stash entries (each as a full patch)
-- Untracked files (tar.gz archive, respects `.gitignore`)
+- Untracked files (copied into the snapshot directory, respects `.gitignore`)
 
 ### restore — reproduce workspace on a new machine
 
@@ -182,11 +182,11 @@ If `base_path` changes (e.g. you rescan from a different directory), stored rela
 | | githand | gita |
 |---|---|---|
 | **Core purpose** | Workspace migration & snapshot | Multi-repo visibility & command dispatch |
-| **Dirty state migration** | Full support (patches + untracked tar.gz) | Not supported — `freeze` only captures URL + branch |
+| **Dirty state migration** | Full support (patches + untracked files) | Not supported — `freeze` only captures URL + branch |
 | **Uncommitted changes** | Preserved across machines | Lost on freeze/clone |
 | **Stash entries** | Serialized and restored | Not captured |
-| **Untracked files** | Archived and restored | Not captured |
-| **Cross-machine workflow** | `snapshot` → copy JSON + data → `restore` | `freeze` → `clone -f` (clean repos only) |
+| **Untracked files** | Copied and restored | Not captured |
+| **Cross-machine workflow** | `snapshot` → copy snapshot directory → `restore` | `freeze` → `clone -f` (clean repos only) |
 | **Batch git commands** | Not the focus | Core feature (`gita super`, `gita shell`) |
 | **Custom command dispatch** | — | Yes (cmds.json, super, shell) |
 | **Status display** | Per-repo detail view | Compact side-by-side `gita ll` |

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/handy-sun/githand/internal/config"
@@ -195,6 +196,20 @@ func TestSnapshotWriteJSON(t *testing.T) {
 	}
 }
 
+func TestDefaultSnapshotDirUsesFixedDotTimestampedDirectoryName(t *testing.T) {
+	parent := t.TempDir()
+
+	dir := DefaultSnapshotDir(parent)
+
+	if filepath.Dir(dir) != parent {
+		t.Fatalf("expected snapshot dir under %s, got %s", parent, dir)
+	}
+	name := filepath.Base(dir)
+	if !regexp.MustCompile(`^githand-snapshot\.\d{4}-\d{6}$`).MatchString(name) {
+		t.Fatalf("expected fixed githand-snapshot.MMDD-HHmmss directory name, got %s", name)
+	}
+}
+
 func TestSnapshotDetachedHEAD(t *testing.T) {
 	dir := initTestRepo(t, "repo-detached")
 	commit, _ := git.HEADCommit(dir)
@@ -313,7 +328,7 @@ func initTestRepo(t *testing.T, name string) string {
 	gitRun(t, repoDir, "commit", "-m", "initial")
 
 	// add origin remote pointing to a dummy bare repo
-	bareDir := filepath.Join(parent, name + "-bare.git")
+	bareDir := filepath.Join(parent, name+"-bare.git")
 	os.MkdirAll(bareDir, 0o755)
 	gitRun(t, bareDir, "init", "--bare")
 	gitRun(t, repoDir, "remote", "add", "origin", bareDir)

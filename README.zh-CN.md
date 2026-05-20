@@ -40,10 +40,10 @@ githand scan ~/work --recursive --auto-group
 githand status
 
 # 3. 迁移前快照
-githand snapshot -o my-workspace.json
+githand snapshot -o ~/snapshots
 
 # 4. 在新机器上恢复
-githand restore my-workspace.json ~/work --base-path ~/work
+githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/work
 ```
 
 ## 命令
@@ -96,19 +96,19 @@ githand status --json                  # 机器可读的 JSON 输出
 
 ```bash
 githand snapshot                       # 快照所有已注册仓库
-githand snapshot -o output.json        # 自定义输出路径
+githand snapshot -o ~/snapshots        # 存放快照目录的父目录
 githand snapshot --group nix           # 仅快照 "nix" 分组
 githand snapshot --filter dirty        # 仅快照有未提交更改的仓库
 ```
 
-生成 JSON 文件 + 同级数据目录：
+生成带时间戳的快照目录：
 
 ```
-workspace-snapshot-20260515-221241.json       # 所有元数据 + 补丁文本
-workspace-snapshot-20260515-221241-data/      # 未跟踪文件压缩包
+githand-snapshot.0515-221241/
+  snapshot.json                               # 所有元数据 + 补丁文本
   untracked/
-    expnix.tar.gz
-    githand.tar.gz
+    expnix/
+    githand/
 ```
 
 **每个仓库捕获的内容：**
@@ -119,7 +119,7 @@ workspace-snapshot-20260515-221241-data/      # 未跟踪文件压缩包
 - 已暂存 diff（`git diff --cached`）
 - 未暂存 diff（`git diff`）
 - Stash 条目（每个作为完整补丁）
-- 未跟踪文件（tar.gz 归档，遵循 `.gitignore`）
+- 未跟踪文件（复制到快照目录，遵循 `.gitignore`）
 
 ### restore — 在新机器上复现工作区
 
@@ -182,11 +182,11 @@ githand group ls                       # 列出所有分组
 | | githand | gita |
 |---|---|---|
 | **核心定位** | 工作区迁移与快照 | 多仓库可视化和命令派发 |
-| **脏状态迁移** | 完整支持（补丁 + 未跟踪 tar.gz） | 不支持 — `freeze` 只捕获 URL + 分支 |
+| **脏状态迁移** | 完整支持（补丁 + 未跟踪文件） | 不支持 — `freeze` 只捕获 URL + 分支 |
 | **未提交更改** | 跨机器保留 | freeze/clone 时丢失 |
 | **Stash 条目** | 序列化并恢复 | 不捕获 |
-| **未跟踪文件** | 归档并恢复 | 不捕获 |
-| **跨机器工作流** | `snapshot` → 拷贝 JSON + 数据 → `restore` | `freeze` → `clone -f`（仅限干净仓库） |
+| **未跟踪文件** | 复制并恢复 | 不捕获 |
+| **跨机器工作流** | `snapshot` → 拷贝快照目录 → `restore` | `freeze` → `clone -f`（仅限干净仓库） |
 | **批量 git 命令** | 非核心功能 | 核心功能（`gita super`、`gita shell`） |
 | **自定义命令派发** | — | 支持（cmds.json、super、shell） |
 | **状态展示** | 每仓库详细视图 | 紧凑并排的 `gita ll` |

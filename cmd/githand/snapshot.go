@@ -23,13 +23,11 @@ var snapshotCmd = &cobra.Command{
 		_, cfg, reg := mustLoadConfig()
 
 		// determine output directory
-		snapDir := snapshotOutput
-		if snapDir == "" {
-			parentDir := expandHome(cfg.Snapshot.OutputDir)
-			snapDir = snapshot.DefaultSnapshotDir(parentDir)
-		} else {
-			snapDir = expandHome(snapDir)
+		parentDir := cfg.Snapshot.OutputDir
+		if snapshotOutput != "" {
+			parentDir = snapshotOutput
 		}
+		snapDir := snapshot.DefaultSnapshotDir(expandHome(parentDir))
 
 		// select repos
 		repos := reg.Repos

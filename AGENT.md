@@ -33,7 +33,7 @@ githand status --group nix             # only repos in group "nix"
 githand status --user handy-sun        # filter by remote URL owner
 githand status --json                  # machine-readable output
 
-githand snapshot [-o output.json]      # snapshot all registered repos
+githand snapshot [-o output_dir]       # snapshot all registered repos
 githand snapshot --group nix           # snapshot only a group
 githand snapshot --filter dirty        # snapshot only matching repos
 
@@ -156,10 +156,10 @@ Design notes:
 Keep snapshot metadata as JSON:
 
 ```text
-workspace-snapshot-YYYYMMDD-HHMMSS.json
-workspace-snapshot-YYYYMMDD-HHMMSS-data/
+githand-snapshot.MMDD-HHmmss/
+  snapshot.json
   untracked/
-    repo-name.tar.gz
+    repo-name/
 ```
 
 The JSON should remain the authoritative manifest:
@@ -178,9 +178,9 @@ The JSON should remain the authoritative manifest:
 - staged patch text
 - unstaged patch text
 - stash patch text
-- untracked archive references and manifest
+- untracked file paths
 
-Do not store binary untracked files as base64 in JSON. Keep them in tar.gz archives under the sibling data directory.
+Do not store binary untracked files as base64 in JSON. Keep them as files under the snapshot directory.
 
 If a single-file transfer format is needed later, add an archive command that packages:
 
@@ -256,5 +256,5 @@ Use temporary directories and real `git` commands in integration tests. The impo
 - Snapshot manifests should stay JSON because they are machine-generated and contain large structured data plus multi-line patches.
 - The project does not need to preserve old Python internals or old JSON registry compatibility.
 - System `git` remains the source of truth for repository behavior.
-- Patch text plus tar.gz archives remain the migration strategy for dirty state.
+- Patch text plus copied untracked files remain the migration strategy for dirty state.
 - Snapshot schema versioning remains required.
