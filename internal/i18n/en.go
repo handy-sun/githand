@@ -11,7 +11,7 @@ var en = map[string]string{
 	// root
 	"root.short":           "Git workspace sync and migration CLI",
 	"root.long":            "Scan directories for git repos, display multi-repo status, snapshot state, and restore on another machine.",
-	"root.flag.config-dir": "config directory (default: $XDG_CONFIG_HOME/githand)",
+	"root.flag.config-dir": "config directory (default: ~/.config/githand or $GITHAND_HOME)",
 	"root.flag.lang":       "output language (en, zh)",
 
 	// scan

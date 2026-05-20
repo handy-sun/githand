@@ -1,8 +1,10 @@
 // Package config handles loading and saving githand configuration files.
 //
-// Two TOML files live under $XDG_CONFIG_HOME/githand/:
-//   - config.toml: user preferences (defaults, worker count, etc.)
-//   - repos.toml:  the repo registry (base_path, repos, groups)
+// Two TOML files live under ~/.config/githand/ by default:
+//   - githand.toml: user preferences (defaults, worker count, etc.)
+//   - repos.toml:   the repo registry (base_path, repos, groups)
+//
+// Set GITHAND_HOME to use a different configuration directory.
 package config
 
 import (
@@ -14,12 +16,17 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+const (
+	EnvHome          = "GITHAND_HOME"
+	ConfigFileName   = "githand.toml"
+	RegistryFileName = "repos.toml"
+)
+
 // DefaultConfigDir returns the githand config directory.
-// Honors XDG_CONFIG_HOME; falls back to ~/.config.
+// Honors GITHAND_HOME; falls back to ~/.config/githand.
 func DefaultConfigDir() (string, error) {
-	xdg := os.Getenv("XDG_CONFIG_HOME")
-	if xdg != "" {
-		return filepath.Join(xdg, "githand"), nil
+	if dir := os.Getenv(EnvHome); dir != "" {
+		return dir, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -28,9 +35,9 @@ func DefaultConfigDir() (string, error) {
 	return filepath.Join(home, ".config", "githand"), nil
 }
 
-// ---------- config.toml ----------
+// ---------- githand.toml ----------
 
-// Config represents the contents of config.toml.
+// Config represents the contents of githand.toml.
 type Config struct {
 	Version  int         `toml:"version"`
 	Scan     ScanConfig  `toml:"scan"`
@@ -80,10 +87,10 @@ func DefaultConfig() Config {
 	}
 }
 
-// LoadConfig reads config.toml from the given directory.
+// LoadConfig reads githand.toml from the given directory.
 // Returns DefaultConfig if the file does not exist.
 func LoadConfig(dir string) (Config, error) {
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, ConfigFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -98,7 +105,7 @@ func LoadConfig(dir string) (Config, error) {
 	return cfg, nil
 }
 
-// SaveConfig writes cfg to config.toml in the given directory.
+// SaveConfig writes cfg to githand.toml in the given directory.
 func SaveConfig(dir string, cfg Config) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
@@ -107,7 +114,7 @@ func SaveConfig(dir string, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, ConfigFileName)
 	return os.WriteFile(path, data, 0o644)
 }
 
@@ -122,15 +129,15 @@ type Repo struct {
 
 // Registry represents the contents of repos.toml.
 type Registry struct {
-	Version  int              `toml:"version"`
-	BasePath string           `toml:"base_path"`
-	Repos    []Repo           `toml:"repos"`
+	Version  int                 `toml:"version"`
+	BasePath string              `toml:"base_path"`
+	Repos    []Repo              `toml:"repos"`
 	Groups   map[string][]string `toml:"groups"`
 }
 
 // LoadRegistry reads repos.toml from the given directory.
 func LoadRegistry(dir string) (Registry, error) {
-	path := filepath.Join(dir, "repos.toml")
+	path := filepath.Join(dir, RegistryFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -154,7 +161,7 @@ func SaveRegistry(dir string, reg Registry) error {
 	if err != nil {
 		return fmt.Errorf("marshal registry: %w", err)
 	}
-	path := filepath.Join(dir, "repos.toml")
+	path := filepath.Join(dir, RegistryFileName)
 	return os.WriteFile(path, data, 0o644)
 }
 

@@ -4,7 +4,7 @@ var zh = map[string]string{
 	// root
 	"root.short":           "Git 工作区同步与迁移工具",
 	"root.long":            "扫描目录发现 Git 仓库，显示多仓库状态，快照状态，并在另一台机器上恢复。",
-	"root.flag.config-dir": "配置目录（默认: $XDG_CONFIG_HOME/githand）",
+	"root.flag.config-dir": "配置目录（默认: ~/.config/githand，可用 $GITHAND_HOME 覆盖）",
 	"root.flag.lang":       "输出语言 (en, zh)",
 
 	// scan

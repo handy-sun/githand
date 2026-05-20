@@ -6,20 +6,24 @@ import (
 	"testing"
 )
 
-func TestDefaultConfigDir(t *testing.T) {
-	// with XDG set
+func TestDefaultConfigDirUsesGithandHome(t *testing.T) {
+	t.Setenv("GITHAND_HOME", "/tmp/githand-home")
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-test")
+
 	dir, err := DefaultConfigDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dir != "/tmp/xdg-test/githand" {
-		t.Fatalf("expected /tmp/xdg-test/githand, got %s", dir)
+	if dir != "/tmp/githand-home" {
+		t.Fatalf("expected /tmp/githand-home, got %s", dir)
 	}
+}
 
-	// without XDG — falls back to ~/.config
-	t.Setenv("XDG_CONFIG_HOME", "")
-	dir, err = DefaultConfigDir()
+func TestDefaultConfigDirFallsBackToHomeDotConfigGithand(t *testing.T) {
+	t.Setenv("GITHAND_HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-test")
+
+	dir, err := DefaultConfigDir()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,6 +47,13 @@ func TestConfigRoundTrip(t *testing.T) {
 
 	if err := SaveConfig(dir, cfg); err != nil {
 		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "githand.toml")); err != nil {
+		t.Fatalf("expected config written to githand.toml: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("config.toml should not be written for global config")
 	}
 
 	loaded, err := LoadConfig(dir)

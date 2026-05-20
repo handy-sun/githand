@@ -56,7 +56,7 @@ Prefer a simple package layout:
 
 ```text
 cmd/githand/           # main package and CLI wiring
-internal/config/       # config.toml and repos.toml load/save
+internal/config/       # githand.toml and repos.toml load/save
 internal/git/          # system git command wrapper and git parsing helpers
 internal/discover/     # repo discovery
 internal/status/       # status collection and filtering
@@ -86,10 +86,10 @@ No compatibility with old `repos.json` is required.
 Path:
 
 ```text
-$XDG_CONFIG_HOME/githand/config.toml
+~/.config/githand/githand.toml
 ```
 
-If `XDG_CONFIG_HOME` is unset, use the platform-appropriate user config directory.
+If `GITHAND_HOME` is set, use that directory instead of `~/.config/githand`.
 
 Proposed format:
 
@@ -119,7 +119,7 @@ Configuration should provide defaults only. Explicit CLI flags override config f
 Path:
 
 ```text
-$XDG_CONFIG_HOME/githand/repos.toml
+~/.config/githand/repos.toml
 ```
 
 Proposed format:
@@ -200,7 +200,7 @@ Resolve path, walk directories, identify git repos, deduplicate by absolute path
 
 ### status
 
-Load `repos.toml` and `config.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data.
+Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data.
 
 Use a bounded worker count from config or CLI. Default to 8 workers.
 

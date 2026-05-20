@@ -13,7 +13,7 @@ Move your entire git workspace to a new machine with one command, **including un
 - **Portable paths** — snapshots use relative paths internally; `--base-path` remaps the root on restore, so `/Users/you/work` becomes `/home/me/projects` seamlessly
 - **Filter & query** — find dirty repos, repos ahead of remote, stashed repos, or repos by group/owner
 - **JSON output** — machine-readable status output for scripting
-- **TOML config** — registry and groups live under `~/.config/githand/` (config.toml + repos.toml)
+- **TOML config** — config, registry, and groups live under `~/.config/githand/` (`githand.toml` + `repos.toml`), or under `GITHAND_HOME`
 - **Cobra CLI** — built with spf13/cobra for a polished command-line experience
 
 ## Installation
@@ -207,7 +207,7 @@ go build -o bin/githand ./cmd/githand/   # build
 go test ./...                              # test
 ```
 
-Config lives at `~/.config/githand/` — delete `repos.toml` to reset the registry.
+Config lives at `~/.config/githand/` by default, or at `GITHAND_HOME` when set. The global config file is `githand.toml`; delete `repos.toml` to reset the registry.
 
 ## License
 

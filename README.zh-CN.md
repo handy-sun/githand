@@ -13,7 +13,7 @@ Git 工作区同步与迁移 CLI — scan、status、snapshot、restore。
 - **路径可移植** — 快照内部使用相对路径；`--base-path` 在恢复时重新映射根目录，`/Users/you/work` 无缝变为 `/home/me/projects`
 - **过滤与查询** — 按脏状态、领先远程、有 stash、分组、所有者等条件筛选仓库
 - **JSON 输出** — 机器可读的状态输出，方便脚本集成
-- **TOML 配置** — 注册表和分组存放在 `~/.config/githand/`（config.toml + repos.toml）
+- **TOML 配置** — 配置、注册表和分组默认存放在 `~/.config/githand/`（`githand.toml` + `repos.toml`），也可通过 `GITHAND_HOME` 指定目录
 - **Cobra CLI** — 基于 spf13/cobra 构建，提供完善的命令行体验
 
 ## 安装
@@ -207,7 +207,7 @@ go build -o bin/githand ./cmd/githand/   # 构建
 go test ./...                              # 测试
 ```
 
-配置位于 `~/.config/githand/` — 删除 `repos.toml` 可重置注册表。
+配置默认位于 `~/.config/githand/`，设置 `GITHAND_HOME` 后改用该目录。全局配置文件名为 `githand.toml`；删除 `repos.toml` 可重置注册表。
 
 ## 许可证
 
