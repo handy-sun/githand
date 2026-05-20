@@ -20,7 +20,7 @@ TEST_TMPDIR := /tmp/githand-test
 ## Version injection from git (falls back to "dev")
 VERSION   := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT    := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-DATE      := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+DATE      := $(shell date +%Y-%m-%dT%H:%M:%S%z)
 BUILD_LDF := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
 ## Cross-compilation targets

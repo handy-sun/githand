@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/handy-sun/githand/internal/config"
@@ -21,6 +22,8 @@ var (
 	version = "dev"
 	commit  = "unknown"
 	date    = "unknown"
+
+	describeLongRE = regexp.MustCompile(`^(.*-[0-9]+)-g[0-9a-fA-F]+$`)
 )
 
 var rootCmd = &cobra.Command{
@@ -47,8 +50,29 @@ func init() {
 	rootCmd.AddCommand(lsCmd)
 	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(groupCmd)
-	rootCmd.Version = version
-	rootCmd.SetVersionTemplate(fmt.Sprintf("githand %s (commit: %s, built: %s)\n", version, commit, date))
+	rootCmd.Version, _ = normalizeBuildInfo(version, commit)
+	rootCmd.SetVersionTemplate(versionTemplate(version, commit, date))
+}
+
+func versionTemplate(rawVersion, rawCommit, buildDate string) string {
+	displayVersion, displayCommit := normalizeBuildInfo(rawVersion, rawCommit)
+	return fmt.Sprintf("githand %s (commit: %s, built: %s)\n", displayVersion, displayCommit, buildDate)
+}
+
+func normalizeBuildInfo(rawVersion, rawCommit string) (string, string) {
+	displayVersion := rawVersion
+	displayCommit := strings.TrimSuffix(rawCommit, "-dirty")
+	dirty := strings.HasSuffix(rawVersion, "-dirty") || strings.HasSuffix(rawCommit, "-dirty")
+
+	displayVersion = strings.TrimSuffix(displayVersion, "-dirty")
+	if matches := describeLongRE.FindStringSubmatch(displayVersion); matches != nil {
+		displayVersion = matches[1]
+	}
+
+	if dirty {
+		displayCommit += "-dirty"
+	}
+	return displayVersion, displayCommit
 }
 
 func main() {
