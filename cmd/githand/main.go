@@ -50,6 +50,7 @@ func init() {
 	rootCmd.AddCommand(groupCmd)
 	rootCmd.Version, _ = normalizeBuildInfo(version, commit)
 	rootCmd.SetVersionTemplate(versionTemplate(version, commit, date))
+	applyTranslations(rootCmd)
 }
 
 func versionTemplate(rawVersion, rawCommit, buildDate string) string {
@@ -88,10 +89,52 @@ func main() {
 			break
 		}
 	}
+	// Wrap the default help function to ensure auto-generated commands
+	// (completion, help) are translated before help text is rendered.
+	defaultHelp := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		applyTranslations(cmd.Root())
+		defaultHelp(cmd, args)
+	})
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// localizedUsageTemplate returns a Cobra usage template with i18n-ized
+// section headers and help/version strings.
+func localizedUsageTemplate() string {
+	return i18n.T("cobra.usage") + `{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+` + i18n.T("cobra.aliases") + `
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+` + i18n.T("cobra.examples") + `
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+` + i18n.T("cobra.available_cmds") + `{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+` + i18n.T("cobra.additional_cmds") + `{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+` + i18n.T("cobra.flags") + `
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+` + i18n.T("cobra.global_flags") + `
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+` + i18n.T("cobra.additional_help_topics") + `{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+` + i18n.T("cobra.use_help") + `{{end}}
+`
 }
 
 // applyTranslations re-applies i18n strings to all cobra commands
@@ -103,8 +146,21 @@ func applyTranslations(root *cobra.Command) {
 		"config-dir": "root.flag.config-dir",
 		"lang":       "root.flag.lang",
 	})
+	// Translate cobra built-in --help and --version flag descriptions.
+	if f := root.Flags().Lookup("help"); f != nil {
+		f.Usage = i18n.Tf("cobra.help_flag", root.Name())
+	}
+	if f := root.Flags().Lookup("version"); f != nil {
+		f.Usage = i18n.Tf("cobra.version_flag", root.Name())
+	}
+	// Re-apply the usage template with new locale strings.
+	root.SetUsageTemplate(localizedUsageTemplate())
 	for _, sub := range root.Commands() {
 		switch sub.Name() {
+		case "completion":
+			sub.Short = i18n.T("cobra.completion")
+		case "help":
+			sub.Short = i18n.T("cobra.help_about")
 		case "scan":
 			sub.Short = i18n.T("scan.short")
 			translateFlags(sub, map[string]string{
@@ -147,7 +203,14 @@ func applyTranslations(root *cobra.Command) {
 				case "ls":
 					gsub.Short = i18n.T("group.ls.short")
 				}
+				if f := gsub.Flags().Lookup("help"); f != nil {
+					f.Usage = i18n.Tf("cobra.help_flag", gsub.Name())
+				}
 			}
+		}
+		// Translate --help flag for each sub-command.
+		if f := sub.Flags().Lookup("help"); f != nil {
+			f.Usage = i18n.Tf("cobra.help_flag", sub.Name())
 		}
 	}
 }

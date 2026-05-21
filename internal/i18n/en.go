@@ -58,6 +58,21 @@ var en = map[string]string{
 	"group.removed":      "Removed group %q.",
 	"group.none_defined": "No groups defined.",
 
+	// cobra template strings
+	"cobra.usage":                  "Usage:",
+	"cobra.aliases":                "Aliases:",
+	"cobra.examples":               "Examples:",
+	"cobra.available_cmds":         "Available Commands:",
+	"cobra.additional_cmds":        "Additional Commands:",
+	"cobra.flags":                  "Flags:",
+	"cobra.global_flags":           "Global Flags:",
+	"cobra.additional_help_topics": "Additional help topics:",
+	"cobra.use_help":               "Use \"{{.CommandPath}} [command] --help\" for more information about a command.",
+	"cobra.help_flag":              "help for %s",
+	"cobra.version_flag":           "version for %s",
+	"cobra.help_about":             "Help about any command",
+	"cobra.completion":             "Generate the autocompletion script for the specified shell",
+
 	// display
 	"display.no_repos": "No repositories registered.",
 	"display.header":   "REPO\tBRANCH\tSTATUS\tAHEAD\tBEHIND\tSTASH",
