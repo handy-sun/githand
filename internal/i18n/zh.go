@@ -51,6 +51,21 @@ var zh = map[string]string{
 	"group.removed":      "已移除分组 %q。",
 	"group.none_defined": "未定义分组。",
 
+	// cobra template strings
+	"cobra.usage":                  "用法：",
+	"cobra.aliases":                "别名：",
+	"cobra.examples":               "示例：",
+	"cobra.available_cmds":         "可用命令：",
+	"cobra.additional_cmds":        "其他命令：",
+	"cobra.flags":                  "选项：",
+	"cobra.global_flags":           "全局选项：",
+	"cobra.additional_help_topics": "更多帮助主题：",
+	"cobra.use_help":               "使用 \"{{.CommandPath}} [command] --help\" 查看命令的更多信息。",
+	"cobra.help_flag":              "%s 的帮助信息",
+	"cobra.version_flag":           "%s 的版本信息",
+	"cobra.help_about":             "显示任何命令的帮助信息",
+	"cobra.completion":             "为指定的 shell 生成自动补全脚本",
+
 	// display
 	"display.no_repos": "未注册仓库。",
 	"display.header":   "仓库\t分支\t状态\t领先\t落后\t暂存",
