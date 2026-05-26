@@ -125,6 +125,133 @@ func initTestRepo(t *testing.T) string {
 	return dir
 }
 
+func TestSyncRegistryRemovesMissing(t *testing.T) {
+	// Create a temporary workspace
+	workspace, err := os.MkdirTemp("", "githand-sync-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workspace) })
+
+	// Create a registry with a repo that doesn't exist
+	reg := &config.Registry{
+		BasePath: workspace,
+		Repos: []config.Repo{
+			{Name: "missing", Path: "/nonexistent/path/to/repo"},
+		},
+	}
+
+	result, err := SyncRegistry(reg, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Removed != 1 {
+		t.Errorf("expected 1 removed, got %d", result.Removed)
+	}
+	if len(reg.Repos) != 0 {
+		t.Errorf("expected 0 repos after sync, got %d", len(reg.Repos))
+	}
+}
+
+func TestSyncRegistryAddsNew(t *testing.T) {
+	// Create a workspace with a git repo
+	workspace, err := os.MkdirTemp("", "githand-sync-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workspace) })
+
+	// Create a git repo in the workspace
+	repoDir := filepath.Join(workspace, "newrepo")
+	if err := os.Mkdir(repoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, repoDir, "init")
+	mustGit(t, repoDir, "config", "user.email", "test@test.com")
+	mustGit(t, repoDir, "config", "user.name", "Test")
+
+	// Create a registry with BasePath set but no repos
+	reg := &config.Registry{
+		BasePath: workspace,
+		Repos:    []config.Repo{},
+		Groups:   make(map[string][]string),
+	}
+
+	result, err := SyncRegistry(reg, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Added != 1 {
+		t.Errorf("expected 1 added, got %d", result.Added)
+	}
+	if len(reg.Repos) != 1 {
+		t.Errorf("expected 1 repo after sync, got %d", len(reg.Repos))
+	}
+	if reg.Repos[0].Name != "newrepo" {
+		t.Errorf("expected repo name 'newrepo', got %q", reg.Repos[0].Name)
+	}
+}
+
+func TestSyncRegistryBoth(t *testing.T) {
+	// Create a workspace with one git repo
+	workspace, err := os.MkdirTemp("", "githand-sync-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workspace) })
+
+	// Create an existing repo
+	existingDir := filepath.Join(workspace, "existing")
+	if err := os.Mkdir(existingDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, existingDir, "init")
+	mustGit(t, existingDir, "config", "user.email", "test@test.com")
+	mustGit(t, existingDir, "config", "user.name", "Test")
+
+	// Create a new repo
+	newDir := filepath.Join(workspace, "newrepo")
+	if err := os.Mkdir(newDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, newDir, "init")
+	mustGit(t, newDir, "config", "user.email", "test@test.com")
+	mustGit(t, newDir, "config", "user.name", "Test")
+
+	// Create a registry with one existing repo and one missing repo
+	reg := &config.Registry{
+		BasePath: workspace,
+		Repos: []config.Repo{
+			{Name: "existing", Path: existingDir},
+			{Name: "missing", Path: "/nonexistent/path"},
+		},
+		Groups: make(map[string][]string),
+	}
+
+	result, err := SyncRegistry(reg, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Debug output
+	t.Logf("Added: %d, Removed: %d", result.Added, result.Removed)
+	for i, repo := range reg.Repos {
+		t.Logf("Repo %d: %s at %s", i, repo.Name, repo.Path)
+	}
+
+	if result.Added != 1 {
+		t.Errorf("expected 1 added, got %d", result.Added)
+	}
+	if result.Removed != 1 {
+		t.Errorf("expected 1 removed, got %d", result.Removed)
+	}
+	if len(reg.Repos) != 2 {
+		t.Errorf("expected 2 repos after sync, got %d", len(reg.Repos))
+	}
+}
+
 func mustGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)

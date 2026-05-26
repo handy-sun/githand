@@ -22,11 +22,14 @@ var en = map[string]string{
 	"scan.result":       "Scanned %s: %d repos found, %d new added.",
 
 	// status
-	"status.short":       "Show status of all registered repos",
-	"status.flag.filter": "filter: dirty, ahead, stash, detached",
-	"status.flag.group":  "filter by group name",
-	"status.flag.owner":  "filter by remote URL owner",
-	"status.flag.json":   "machine-readable JSON output",
+	"status.short":        "Show status of all registered repos",
+	"status.flag.filter":  "filter: dirty, ahead, stash, detached",
+	"status.flag.group":   "filter by group name",
+	"status.flag.owner":   "filter by remote URL owner",
+	"status.flag.json":    "machine-readable JSON output",
+	"status.flag.sync":    "auto-sync repo list (detect added and removed repos)",
+	"status.sync_added":   "Added %d new repo(s)",
+	"status.sync_removed": "Removed %d missing repo(s)",
 
 	// snapshot
 	"snapshot.short":       "Snapshot all registered repos",

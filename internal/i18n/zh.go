@@ -15,11 +15,14 @@ var zh = map[string]string{
 	"scan.result":       "已扫描 %s：发现 %d 个仓库，新增 %d 个。",
 
 	// status
-	"status.short":       "显示所有已注册仓库的状态",
-	"status.flag.filter": "过滤: dirty, ahead, stash, detached",
-	"status.flag.group":  "按分组名过滤",
-	"status.flag.owner":  "按远程 URL 所有者过滤",
-	"status.flag.json":   "机器可读的 JSON 输出",
+	"status.short":        "显示所有已注册仓库的状态",
+	"status.flag.filter":  "过滤: dirty, ahead, stash, detached",
+	"status.flag.group":   "按分组名过滤",
+	"status.flag.owner":   "按远程 URL 所有者过滤",
+	"status.flag.json":    "机器可读的 JSON 输出",
+	"status.flag.sync":    "自动同步仓库列表（检测新增和删除的仓库）",
+	"status.sync_added":   "新增 %d 个仓库",
+	"status.sync_removed": "移除 %d 个不存在的仓库",
 
 	// snapshot
 	"snapshot.short":       "快照所有已注册仓库",

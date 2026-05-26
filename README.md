@@ -62,6 +62,7 @@ On first scan, the directory is recorded as `base_path`. Subsequent scans preser
 
 ```bash
 githand status                         # show all repos
+githand status --sync                  # auto-sync repo list (detect added and removed repos)
 githand status --filter dirty          # only repos with uncommitted changes
 githand status --filter ahead          # only repos ahead of remote
 githand status --filter stash          # only repos with stash entries
@@ -70,6 +71,14 @@ githand status --group nix             # only repos in group "nix"
 githand status --user handy-sun        # filter by remote URL owner
 githand status --json                  # machine-readable JSON output
 ```
+
+**Auto-sync feature:**
+
+Use the `--sync` flag or set `status.auto_sync = true` in the config file, and the `status` command will automatically:
+- Remove repos from the registry that no longer exist on disk
+- Discover and add new repos under `base_path`
+
+This way you don't need to manually run `scan` every time you add or remove repos.
 
 **Status symbols:**
 

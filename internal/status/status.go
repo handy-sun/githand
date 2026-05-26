@@ -2,9 +2,12 @@
 package status
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/handy-sun/githand/internal/config"
+	"github.com/handy-sun/githand/internal/discover"
 	"github.com/handy-sun/githand/internal/git"
 	"golang.org/x/sync/errgroup"
 )
@@ -160,4 +163,79 @@ func FilterByUser(statuses []RepoStatus, user string) []RepoStatus {
 		}
 	}
 	return result
+}
+
+// SyncResult holds the result of syncing the registry with the filesystem.
+type SyncResult struct {
+	Added   int
+	Removed int
+}
+
+// SyncRegistry synchronizes the registry with the filesystem:
+// - Removes repos whose paths no longer exist
+// - Discovers and adds new repos under BasePath
+// Returns the number of repos added and removed.
+func SyncRegistry(reg *config.Registry, recursive, autoGroup bool) (SyncResult, error) {
+	result := SyncResult{}
+
+	// Step 1: Remove repos that no longer exist
+	var validRepos []config.Repo
+	for _, repo := range reg.Repos {
+		if _, err := os.Stat(repo.Path); err == nil {
+			// Path exists, keep it
+			validRepos = append(validRepos, repo)
+		} else if os.IsNotExist(err) {
+			// Path doesn't exist, mark for removal
+			result.Removed++
+		}
+	}
+	reg.Repos = validRepos
+
+	// Step 2: Discover new repos under BasePath
+	if reg.BasePath == "" {
+		// No base path configured, skip discovery
+		return result, nil
+	}
+
+	found, err := discover.Discover(reg.BasePath, recursive, autoGroup)
+	if err != nil {
+		return result, err
+	}
+
+	// Build a map of existing repos by normalized path
+	existing := make(map[string]bool)
+	for _, r := range reg.Repos {
+		// Normalize path to handle symlinks (e.g., /var -> /private/var on macOS)
+		normalized, err := filepath.EvalSymlinks(r.Path)
+		if err != nil {
+			// If we can't resolve symlinks, use the original path
+			normalized = r.Path
+		}
+		existing[normalized] = true
+	}
+
+	// Add new repos
+	for _, r := range found {
+		// Normalize the discovered path as well
+		normalized, err := filepath.EvalSymlinks(r.Path)
+		if err != nil {
+			normalized = r.Path
+		}
+
+		if !existing[normalized] {
+			reg.Repos = append(reg.Repos, r)
+			existing[normalized] = true
+			result.Added++
+
+			// Register in groups map
+			if r.Group != "" {
+				if reg.Groups == nil {
+					reg.Groups = make(map[string][]string)
+				}
+				reg.Groups[r.Group] = append(reg.Groups[r.Group], r.Name)
+			}
+		}
+	}
+
+	return result, nil
 }

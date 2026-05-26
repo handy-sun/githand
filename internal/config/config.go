@@ -60,8 +60,9 @@ type ScanConfig struct {
 }
 
 type StatusConf struct {
-	Workers int  `toml:"workers"`
-	JSON    bool `toml:"json"`
+	Workers  int  `toml:"workers"`
+	JSON     bool `toml:"json"`
+	AutoSync bool `toml:"auto_sync"`
 }
 
 type SnapConfig struct {
@@ -82,8 +83,9 @@ func DefaultConfig() Config {
 			AutoGroup: true,
 		},
 		Status: StatusConf{
-			Workers: 8,
-			JSON:    false,
+			Workers:  8,
+			JSON:     false,
+			AutoSync: true,
 		},
 		Snapshot: SnapConfig{
 			OutputDir:    defaultSnapshotOutputDir(),

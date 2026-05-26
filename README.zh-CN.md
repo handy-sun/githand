@@ -62,6 +62,7 @@ githand scan <path> --auto-group       # 按子目录名自动创建分组
 
 ```bash
 githand status                         # 显示所有仓库
+githand status --sync                  # 自动同步仓库列表（检测新增和删除的仓库）
 githand status --filter dirty          # 仅显示有未提交更改的仓库
 githand status --filter ahead          # 仅显示领先远程的仓库
 githand status --filter stash          # 仅显示有 stash 的仓库
@@ -70,6 +71,14 @@ githand status --group nix             # 仅显示 "nix" 分组中的仓库
 githand status --user handy-sun        # 按远程 URL 所有者筛选
 githand status --json                  # 机器可读的 JSON 输出
 ```
+
+**自动同步功能：**
+
+使用 `--sync` 标志或在配置文件中设置 `status.auto_sync = true`，`status` 命令会自动：
+- 从注册表中移除已删除的仓库
+- 发现并添加 `base_path` 下新增的仓库
+
+这样你就不需要在每次添加或删除仓库后手动运行 `scan` 命令。
 
 **状态符号：**
 
