@@ -88,6 +88,22 @@ install-hooks:
 	git config core.hooksPath .githooks
 	@echo "Git hooks configured: core.hooksPath=.githooks"
 
+.PHONY: install-completion
+install-completion: build
+	@shell=$$(basename "$$SHELL"); \
+	case "$$shell" in \
+		bash)  dir=~/.local/share/bash-completion/completions; file=githand ;; \
+		zsh)   dir=~/.zfunc; file=_githand ;; \
+		fish)  dir=~/.config/fish/completions; file=githand.fish ;; \
+		*)     echo "unsupported shell: $$shell"; exit 1 ;; \
+	esac; \
+	mkdir -p "$$dir" && $(BINDIR)/$(BINARY) completion "$$shell" > "$$dir/$$file" && \
+	echo "installed $$shell completion to $$dir/$$file"; \
+	if [ "$$shell" = zsh ]; then \
+		grep -q 'fpath.*\.zfunc' ~/.zshrc 2>/dev/null || \
+		{ echo 'fpath+=~/.zfunc' >> ~/.zshrc && echo 'added fpath+=~/.zfunc to ~/.zshrc'; }; \
+	fi
+
 ## ── Cross-compilation ───────────────────────────────────
 
 define cross_template
@@ -125,6 +141,7 @@ help:
 	@echo "  make fmt-check — verify Go formatting"
 	@echo "  make install  — cpy binary to $$GOPATH/bin/"
 	@echo "  make install-hooks — configure git hooks for this repo"
+	@echo "  make install-completion — install shell completion for current shell"
 	@echo "  make test     — run tests (race detector on)"
 	@echo "  make lint     — go vet + staticcheck"
 	@echo "  make cross    — cross-compile all platforms"
