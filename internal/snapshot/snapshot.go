@@ -2,6 +2,7 @@
 package snapshot
 
 import (
+	"archive/tar"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -265,6 +266,103 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 	}
 
 	return nil
+}
+
+// WriteOutput saves a snapshot using the compact output layout.
+// JSON-only snapshots are written directly to outputBase+".json".
+// Snapshots with untracked files keep the directory layout so file payloads
+// can live next to snapshot.json. If archiveDir is true, that directory is
+// also written as outputBase+".tar".
+func WriteOutput(snap *Snapshot, outputBase string, basePath string, archiveDir bool) (string, error) {
+	if HasUntracked(snap) {
+		if err := Write(snap, outputBase, basePath); err != nil {
+			return "", err
+		}
+		if archiveDir {
+			if err := writeTar(outputBase, outputBase+".tar"); err != nil {
+				return "", fmt.Errorf("archive snapshot: %w", err)
+			}
+		}
+		return outputBase, nil
+	}
+
+	jsonPath := outputBase
+	if filepath.Ext(jsonPath) != ".json" {
+		jsonPath += ".json"
+	}
+	if err := os.MkdirAll(filepath.Dir(jsonPath), 0o755); err != nil {
+		return "", fmt.Errorf("create snapshot parent dir: %w", err)
+	}
+	data, err := json.MarshalIndent(snap, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal snapshot: %w", err)
+	}
+	if err := os.WriteFile(jsonPath, data, 0o644); err != nil {
+		return "", fmt.Errorf("write snapshot: %w", err)
+	}
+	return jsonPath, nil
+}
+
+// HasUntracked reports whether the snapshot needs payload files next to JSON.
+func HasUntracked(snap *Snapshot) bool {
+	for _, rs := range snap.Repos {
+		if len(rs.Untracked) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func writeTar(srcDir, tarPath string) error {
+	out, err := os.Create(tarPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	tw := tar.NewWriter(out)
+	defer tw.Close()
+
+	parent := filepath.Dir(srcDir)
+	return filepath.WalkDir(srcDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(parent, path)
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(rel)
+		if d.IsDir() {
+			header.Name += "/"
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(tw, in)
+		closeErr := in.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
 }
 
 // copyFile copies a single file, creating parent directories as needed.

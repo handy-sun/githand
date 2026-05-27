@@ -25,11 +25,12 @@ var zh = map[string]string{
 	"status.sync_removed": "移除 %d 个不存在的仓库",
 
 	// snapshot
-	"snapshot.short":       "快照所有已注册仓库",
-	"snapshot.flag.output": "存放带时间戳快照目录的父目录",
-	"snapshot.flag.group":  "仅快照此分组中的仓库",
-	"snapshot.flag.filter": "仅快照匹配的仓库 (dirty, ahead, stash, detached)",
-	"snapshot.written":     "快照已写入 %s（%d 个仓库）",
+	"snapshot.short":        "快照所有已注册仓库",
+	"snapshot.flag.output":  "存放带时间戳快照输出的父目录",
+	"snapshot.flag.group":   "仅快照此分组中的仓库",
+	"snapshot.flag.filter":  "仅快照匹配的仓库 (dirty, ahead, stash, detached)",
+	"snapshot.flag.archive": "包含未跟踪文件时，将快照目录归档为 .tar",
+	"snapshot.written":      "快照已写入 %s（%d 个仓库）",
 
 	// restore
 	"restore.short":          "从快照恢复仓库",

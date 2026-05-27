@@ -105,12 +105,19 @@ This way you don't need to manually run `scan` every time you add or remove repo
 
 ```bash
 githand snapshot                       # snapshot all registered repos
-githand snapshot -o ~/snapshots        # parent directory for snapshot folders
+githand snapshot -o ~/snapshots        # parent directory for snapshot outputs
 githand snapshot --group nix           # only repos in group "nix"
 githand snapshot --filter dirty        # only repos with uncommitted changes
+githand snapshot --archive             # also create .tar when a folder is needed
 ```
 
-Produces a timestamped snapshot directory:
+If the snapshot only needs JSON metadata and patches, it writes a single timestamped JSON file:
+
+```
+githand-snapshot.0515-221241.json
+```
+
+If untracked files are included, it keeps the timestamped snapshot directory:
 
 ```
 githand-snapshot.0515-221241/
@@ -119,6 +126,8 @@ githand-snapshot.0515-221241/
     expnix/
     githand/
 ```
+
+With `--archive`, that directory is also packed as `githand-snapshot.0515-221241.tar`.
 
 **What gets captured per repo:**
 

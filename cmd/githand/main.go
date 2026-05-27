@@ -178,9 +178,10 @@ func applyTranslations(root *cobra.Command) {
 		case "snapshot":
 			sub.Short = i18n.T("snapshot.short")
 			translateFlags(sub, map[string]string{
-				"output": "snapshot.flag.output",
-				"group":  "snapshot.flag.group",
-				"filter": "snapshot.flag.filter",
+				"output":  "snapshot.flag.output",
+				"group":   "snapshot.flag.group",
+				"filter":  "snapshot.flag.filter",
+				"archive": "snapshot.flag.archive",
 			})
 		case "restore":
 			sub.Short = i18n.T("restore.short")

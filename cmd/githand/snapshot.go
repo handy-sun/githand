@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	snapshotOutput string
-	snapshotGroup  string
-	snapshotFilter string
+	snapshotOutput  string
+	snapshotGroup   string
+	snapshotFilter  string
+	snapshotArchive bool
 )
 
 var snapshotCmd = &cobra.Command{
@@ -46,12 +47,13 @@ var snapshotCmd = &cobra.Command{
 			snap.Repos = snapshot.Filter(snap.Repos, snapshotFilter)
 		}
 
-		// write snapshot folder
-		if err := snapshot.Write(snap, snapDir, reg.BasePath); err != nil {
+		// write snapshot output
+		writtenPath, err := snapshot.WriteOutput(snap, snapDir, reg.BasePath, snapshotArchive)
+		if err != nil {
 			return fmt.Errorf("write snapshot: %w", err)
 		}
 
-		fmt.Println(i18n.Tf("snapshot.written", snapDir, len(snap.Repos)))
+		fmt.Println(i18n.Tf("snapshot.written", writtenPath, len(snap.Repos)))
 		return nil
 	},
 }
@@ -60,6 +62,7 @@ func init() {
 	snapshotCmd.Flags().StringVarP(&snapshotOutput, "output", "o", "", i18n.T("snapshot.flag.output"))
 	snapshotCmd.Flags().StringVar(&snapshotGroup, "group", "", i18n.T("snapshot.flag.group"))
 	snapshotCmd.Flags().StringVar(&snapshotFilter, "filter", "", i18n.T("snapshot.flag.filter"))
+	snapshotCmd.Flags().BoolVar(&snapshotArchive, "archive", false, i18n.T("snapshot.flag.archive"))
 }
 
 // expandHome replaces a leading ~ with the user's home directory.

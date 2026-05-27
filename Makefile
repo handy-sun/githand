@@ -62,11 +62,11 @@ fmt-check:
 
 .PHONY: test
 test:
-	mkdir -p $(TEST_TMPDIR) && TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race
+	mkdir -p $(TEST_TMPDIR) && CGO_ENABLED=1 TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race
 
 .PHONY: coverage
 coverage:
-	mkdir -p $(TEST_TMPDIR) && TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race -coverprofile=$(TEST_TMPDIR)/coverage.out
+	mkdir -p $(TEST_TMPDIR) && CGO_ENABLED=1 TMPDIR=$(TEST_TMPDIR) $(GO) test ./internal/... -count=1 -race -coverprofile=$(TEST_TMPDIR)/coverage.out
 	$(GO) tool cover -func=$(TEST_TMPDIR)/coverage.out
 
 ## ── Lint ─────────────────────────────────────────────────

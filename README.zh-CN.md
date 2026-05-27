@@ -105,12 +105,19 @@ githand status --json                  # 机器可读的 JSON 输出
 
 ```bash
 githand snapshot                       # 快照所有已注册仓库
-githand snapshot -o ~/snapshots        # 存放快照目录的父目录
+githand snapshot -o ~/snapshots        # 存放快照输出的父目录
 githand snapshot --group nix           # 仅快照 "nix" 分组
 githand snapshot --filter dirty        # 仅快照有未提交更改的仓库
+githand snapshot --archive             # 需要目录时额外生成 .tar 归档
 ```
 
-生成带时间戳的快照目录：
+如果快照只需要 JSON 元数据和补丁，会直接生成带时间戳的 JSON 文件：
+
+```
+githand-snapshot.0515-221241.json
+```
+
+如果包含未跟踪文件，则保持原来的带时间戳快照目录：
 
 ```
 githand-snapshot.0515-221241/
@@ -119,6 +126,8 @@ githand-snapshot.0515-221241/
     expnix/
     githand/
 ```
+
+使用 `--archive` 时，该目录会额外打包为 `githand-snapshot.0515-221241.tar`。
 
 **每个仓库捕获的内容：**
 

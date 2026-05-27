@@ -1,7 +1,9 @@
 package snapshot
 
 import (
+	"archive/tar"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -196,6 +198,84 @@ func TestSnapshotWriteJSON(t *testing.T) {
 	}
 }
 
+func TestWriteOutputWithoutUntrackedWritesSingleJSONFile(t *testing.T) {
+	dir := initTestRepo(t, "repo-json-only")
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-json-only", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	outputBase := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
+	writtenPath, err := WriteOutput(snap, outputBase, parent, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedJSON := outputBase + ".json"
+	if writtenPath != expectedJSON {
+		t.Fatalf("expected written path %s, got %s", expectedJSON, writtenPath)
+	}
+	if info, err := os.Stat(expectedJSON); err != nil || info.IsDir() {
+		t.Fatalf("expected single snapshot JSON file at %s: %v", expectedJSON, err)
+	}
+	if _, err := os.Stat(outputBase); !os.IsNotExist(err) {
+		t.Fatalf("snapshot directory should not be created for JSON-only snapshots")
+	}
+}
+
+func TestWriteOutputWithUntrackedKeepsFolderAndArchivesWhenRequested(t *testing.T) {
+	dir := initTestRepo(t, "repo-archive")
+	os.WriteFile(filepath.Join(dir, "untracked.txt"), []byte("new file"), 0o644)
+
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-archive", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	outputBase := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
+	writtenPath, err := WriteOutput(snap, outputBase, parent, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if writtenPath != outputBase {
+		t.Fatalf("expected folder snapshot path %s, got %s", outputBase, writtenPath)
+	}
+	if _, err := os.Stat(filepath.Join(outputBase, SnapshotJSONName)); err != nil {
+		t.Fatalf("expected snapshot manifest inside folder: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputBase, "untracked", "repo-archive", "untracked.txt")); err != nil {
+		t.Fatalf("expected untracked file in snapshot folder: %v", err)
+	}
+
+	tarPath := outputBase + ".tar"
+	if _, err := os.Stat(tarPath); err != nil {
+		t.Fatalf("expected tar archive at %s: %v", tarPath, err)
+	}
+	if !tarContains(t, tarPath, filepath.Base(outputBase)+"/"+SnapshotJSONName) {
+		t.Fatalf("tar archive should contain %s", SnapshotJSONName)
+	}
+	if !tarContains(t, tarPath, filepath.Base(outputBase)+"/untracked/repo-archive/untracked.txt") {
+		t.Fatalf("tar archive should contain copied untracked file")
+	}
+}
+
 func TestDefaultSnapshotDirUsesFixedDotTimestampedDirectoryName(t *testing.T) {
 	parent := t.TempDir()
 
@@ -342,5 +422,28 @@ func gitRun(t *testing.T, dir string, args ...string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
+	}
+}
+
+func tarContains(t *testing.T, tarPath, name string) bool {
+	t.Helper()
+	f, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	tr := tar.NewReader(f)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hdr.Name == name {
+			return true
+		}
 	}
 }
