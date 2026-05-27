@@ -368,6 +368,12 @@ func gitCmd(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func configureGitIdentity(t *testing.T, dir string) {
+	t.Helper()
+	gitCmd(t, dir, "config", "user.email", "test@test.com")
+	gitCmd(t, dir, "config", "user.name", "Test")
+}
+
 func gitOut(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -411,6 +417,7 @@ func TestRestoreExistingRepo(t *testing.T) {
 	tmpDir := t.TempDir()
 	workDir := filepath.Join(tmpDir, "work")
 	gitCmd(t, tmpDir, "clone", bareDir, workDir)
+	configureGitIdentity(t, workDir)
 	os.WriteFile(filepath.Join(workDir, "new.txt"), []byte("new content\n"), 0o644)
 	gitCmd(t, workDir, "add", "new.txt")
 	gitCmd(t, workDir, "commit", "-m", "add new file")
@@ -478,6 +485,7 @@ func TestRestoreExistingRepoUsesSnapshotRemoteAndCommit(t *testing.T) {
 	tmpDir := t.TempDir()
 	workDir := filepath.Join(tmpDir, "work")
 	gitCmd(t, tmpDir, "clone", correctBare, workDir)
+	configureGitIdentity(t, workDir)
 	if err := os.WriteFile(filepath.Join(workDir, "correct.txt"), []byte("correct\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
