@@ -378,3 +378,62 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+// TestRestoreExistingRepo verifies that restoring into an existing repo
+// updates it instead of failing.
+func TestRestoreExistingRepo(t *testing.T) {
+	// Create initial repo and snapshot
+	bareDir := initBareRepo(t, "existing-repo")
+	commit := getHEAD(t, bareDir)
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
+		Name:          "existing-repo",
+		RelPath:       "existing-repo",
+		CurrentBranch: "main",
+		HeadCommit:    commit,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	})
+
+	targetDir, _ := os.MkdirTemp("", "githand-restore-test-")
+	defer os.RemoveAll(targetDir)
+
+	// First restore - should clone
+	err := Run(snapPath, targetDir, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repoDir := filepath.Join(targetDir, "existing-repo")
+	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err != nil {
+		t.Fatalf("restored repo should exist: %v", err)
+	}
+
+	// Make a change in the bare repo
+	tmpDir := t.TempDir()
+	workDir := filepath.Join(tmpDir, "work")
+	gitCmd(t, tmpDir, "clone", bareDir, workDir)
+	os.WriteFile(filepath.Join(workDir, "new.txt"), []byte("new content\n"), 0o644)
+	gitCmd(t, workDir, "add", "new.txt")
+	gitCmd(t, workDir, "commit", "-m", "add new file")
+	gitCmd(t, workDir, "push")
+
+	// Create new snapshot with updated commit
+	newCommit := getHEAD(t, workDir)
+	snapPath2 := writeTestSnapshot(t, snapshot.RepoSnap{
+		Name:          "existing-repo",
+		RelPath:       "existing-repo",
+		CurrentBranch: "main",
+		HeadCommit:    newCommit,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	})
+
+	// Second restore - should update existing repo
+	err = Run(snapPath2, targetDir, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the new file exists
+	if _, err := os.Stat(filepath.Join(repoDir, "new.txt")); err != nil {
+		t.Errorf("new file should exist after update: %v", err)
+	}
+}

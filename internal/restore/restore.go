@@ -51,11 +51,22 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 			continue
 		}
 
+		// check if repo already exists
+		exists := false
+		if _, err := os.Stat(repoDir); err == nil && git.IsRepo(repoDir) {
+			exists = true
+		}
+
 		if err := restoreRepo(rs, repoDir, snapDir); err != nil {
 			fmt.Fprintf(os.Stderr, "  warning: restore %s failed: %v\n", rs.Name, err)
 			continue
 		}
-		fmt.Println(i18n.Tf("restore.restored", rs.Name))
+
+		if exists {
+			fmt.Println(i18n.Tf("restore.updated", rs.Name))
+		} else {
+			fmt.Println(i18n.Tf("restore.restored", rs.Name))
+		}
 
 		_ = effectiveBase // used for path remapping
 	}
@@ -69,7 +80,17 @@ func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
-	// clone from primary remote
+	// check if target directory already exists
+	if _, err := os.Stat(targetDir); err == nil {
+		// directory exists - check if it's a git repo
+		if !git.IsRepo(targetDir) {
+			return fmt.Errorf("target exists but is not a git repo: %s", targetDir)
+		}
+		// it's a git repo - update it instead of cloning
+		return updateRepo(rs, targetDir, snapDir)
+	}
+
+	// directory doesn't exist - clone from primary remote
 	if len(rs.Remotes) == 0 {
 		return fmt.Errorf("no remotes for %s", rs.Name)
 	}
@@ -89,6 +110,58 @@ func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 		_ = git.Checkout(targetDir, rs.HeadCommit)
 	} else if rs.CurrentBranch != "" {
 		_ = git.Checkout(targetDir, rs.CurrentBranch)
+	}
+
+	// apply staged patch
+	if rs.StagedPatch != "" {
+		if err := git.ApplyCached(targetDir, rs.StagedPatch); err != nil {
+			fmt.Fprintf(os.Stderr, "    warning: staged patch apply failed: %v\n", err)
+		}
+	}
+
+	// apply unstaged patch
+	if rs.UnstagedPatch != "" {
+		if err := git.Apply(targetDir, rs.UnstagedPatch); err != nil {
+			fmt.Fprintf(os.Stderr, "    warning: unstaged patch apply failed: %v\n", err)
+		}
+	}
+
+	// recreate stashes
+	for _, stash := range rs.Stashes {
+		if err := git.StashApply(targetDir, stash.Patch); err != nil {
+			fmt.Fprintf(os.Stderr, "    warning: stash restore failed for %s: %v\n", stash.Ref, err)
+		}
+	}
+
+	// copy untracked files from snapshot's untracked/<repo>/ directory
+	if len(rs.Untracked) > 0 {
+		untrackedDir := filepath.Join(snapDir, "untracked", rs.Name)
+		for _, file := range rs.Untracked {
+			src := filepath.Join(untrackedDir, file)
+			dst := filepath.Join(targetDir, file)
+			if err := copyFile(src, dst); err != nil {
+				fmt.Fprintf(os.Stderr, "    warning: restore untracked %s: %v\n", file, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func updateRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
+	// update existing repo: fetch all remotes and reset to snapshot state
+	if err := git.FetchAll(targetDir); err != nil {
+		fmt.Fprintf(os.Stderr, "    warning: fetch failed: %v\n", err)
+	}
+
+	// checkout branch or detached commit
+	if rs.Detached {
+		_ = git.Checkout(targetDir, rs.HeadCommit)
+	} else if rs.CurrentBranch != "" {
+		// checkout the branch and reset to remote state
+		_ = git.Checkout(targetDir, rs.CurrentBranch)
+		// reset to origin/<branch> to get latest changes
+		_ = git.ResetToRemote(targetDir, rs.CurrentBranch)
 	}
 
 	// apply staged patch

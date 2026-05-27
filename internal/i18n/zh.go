@@ -79,4 +79,5 @@ var zh = map[string]string{
 	"restore.progress": "正在将 %d 个仓库从 %s 恢复到 %s",
 	"restore.dry_run":  "[试运行] 将恢复 %s -> %s",
 	"restore.restored": "已恢复 %s",
+	"restore.updated":  "已更新 %s（仓库已存在）",
 }

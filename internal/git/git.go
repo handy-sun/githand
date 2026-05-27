@@ -225,6 +225,16 @@ func FetchAll(dir string) error {
 	return RunSilent(dir, "fetch", "--all")
 }
 
+// ResetHard resets the working tree and index to match HEAD.
+func ResetHard(dir string) error {
+	return RunSilent(dir, "reset", "--hard")
+}
+
+// ResetToRemote resets the current branch to match its remote tracking branch.
+func ResetToRemote(dir, branch string) error {
+	return RunSilent(dir, "reset", "--hard", "origin/"+branch)
+}
+
 // AheadBehind returns (ahead, behind) counts for the current branch
 // relative to its upstream. Returns (0, 0) if no upstream is set.
 func AheadBehind(dir string) (int, int, error) {

@@ -86,4 +86,5 @@ var en = map[string]string{
 	"restore.progress": "Restoring %d repos from %s into %s",
 	"restore.dry_run":  "[dry-run] would restore %s -> %s",
 	"restore.restored": "restored %s",
+	"restore.updated":  "updated %s (already exists)",
 }
