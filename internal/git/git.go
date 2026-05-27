@@ -146,6 +146,11 @@ func Checkout(dir, ref string) error {
 	return RunSilent(dir, "checkout", ref)
 }
 
+// CheckoutBranchAt creates or resets branch at ref and checks it out.
+func CheckoutBranchAt(dir, branch, ref string) error {
+	return RunSilent(dir, "checkout", "-B", branch, ref)
+}
+
 // ApplyCached applies a patch to the staging area and updates the working tree.
 func ApplyCached(dir, patch string) error {
 	cmd := exec.Command("git", "apply", "--cached")
@@ -203,6 +208,11 @@ func StashApply(dir, patch string) error {
 // AddRemote adds a named remote.
 func AddRemote(dir, name, url string) error {
 	return RunSilent(dir, "remote", "add", name, url)
+}
+
+// SetRemoteURL updates a named remote URL.
+func SetRemoteURL(dir, name, url string) error {
+	return RunSilent(dir, "remote", "set-url", name, url)
 }
 
 // TrackBranch sets up local branch to track a remote branch.

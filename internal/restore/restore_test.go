@@ -437,3 +437,96 @@ func TestRestoreExistingRepo(t *testing.T) {
 		t.Errorf("new file should exist after update: %v", err)
 	}
 }
+
+func TestRestoreExistingRepoDoesNotDiscardLocalChanges(t *testing.T) {
+	bareDir := initBareRepo(t, "dirty-existing-repo")
+	commit := getHEAD(t, bareDir)
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
+		Name:          "dirty-existing-repo",
+		RelPath:       "dirty-existing-repo",
+		CurrentBranch: "main",
+		HeadCommit:    commit,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	})
+
+	targetDir := t.TempDir()
+	if err := Run(snapPath, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	repoDir := filepath.Join(targetDir, "dirty-existing-repo")
+	localContent := []byte("local edit\n")
+	if err := os.WriteFile(filepath.Join(repoDir, "README.md"), localContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Run(snapPath, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(repoDir, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(localContent) {
+		t.Fatalf("restore should not discard local changes, got %q", got)
+	}
+}
+
+func TestRestoreExistingRepoUsesSnapshotRemoteAndCommit(t *testing.T) {
+	correctBare := initBareRepo(t, "correct-remote")
+	tmpDir := t.TempDir()
+	workDir := filepath.Join(tmpDir, "work")
+	gitCmd(t, tmpDir, "clone", correctBare, workDir)
+	if err := os.WriteFile(filepath.Join(workDir, "correct.txt"), []byte("correct\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, workDir, "add", "correct.txt")
+	gitCmd(t, workDir, "commit", "-m", "add correct file")
+	gitCmd(t, workDir, "push")
+	correctCommit := getHEAD(t, workDir)
+
+	wrongBare := initBareRepo(t, "wrong-remote")
+	targetDir := t.TempDir()
+	repoDir := filepath.Join(targetDir, "existing-repo")
+	gitCmd(t, targetDir, "clone", wrongBare, repoDir)
+
+	snapPath := writeTestSnapshot(t, snapshot.RepoSnap{
+		Name:          "existing-repo",
+		RelPath:       "existing-repo",
+		CurrentBranch: "main",
+		HeadCommit:    correctCommit,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: correctBare}},
+		Branches:      []snapshot.BranchSnap{{Name: "main", Upstream: "origin/main"}},
+	})
+
+	if err := Run(snapPath, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(repoDir, "correct.txt")); err != nil {
+		t.Fatalf("existing repo should be updated from snapshot remote and commit: %v", err)
+	}
+	head := gitOut(t, repoDir, "rev-parse", "HEAD")
+	if head != correctCommit {
+		t.Fatalf("HEAD should match snapshot commit %s, got %s", correctCommit, head)
+	}
+}
+
+func TestRestoreExistingRepoReturnsErrorWhenSnapshotCommitMissing(t *testing.T) {
+	bareDir := initBareRepo(t, "missing-commit")
+	targetDir := t.TempDir()
+	repoDir := filepath.Join(targetDir, "missing-commit")
+	gitCmd(t, targetDir, "clone", bareDir, repoDir)
+
+	err := restoreRepo(snapshot.RepoSnap{
+		Name:          "missing-commit",
+		RelPath:       "missing-commit",
+		CurrentBranch: "main",
+		HeadCommit:    strings.Repeat("0", 40),
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	}, repoDir, t.TempDir())
+	if err == nil {
+		t.Fatal("expected missing snapshot commit to fail")
+	}
+}

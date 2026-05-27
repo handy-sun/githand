@@ -106,64 +106,105 @@ func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 	}
 
 	// checkout branch or detached commit
-	if rs.Detached {
-		_ = git.Checkout(targetDir, rs.HeadCommit)
-	} else if rs.CurrentBranch != "" {
-		_ = git.Checkout(targetDir, rs.CurrentBranch)
+	if err := checkoutSnapshotRef(rs, targetDir); err != nil {
+		return err
 	}
 
-	// apply staged patch
-	if rs.StagedPatch != "" {
-		if err := git.ApplyCached(targetDir, rs.StagedPatch); err != nil {
-			fmt.Fprintf(os.Stderr, "    warning: staged patch apply failed: %v\n", err)
-		}
-	}
-
-	// apply unstaged patch
-	if rs.UnstagedPatch != "" {
-		if err := git.Apply(targetDir, rs.UnstagedPatch); err != nil {
-			fmt.Fprintf(os.Stderr, "    warning: unstaged patch apply failed: %v\n", err)
-		}
-	}
-
-	// recreate stashes
-	for _, stash := range rs.Stashes {
-		if err := git.StashApply(targetDir, stash.Patch); err != nil {
-			fmt.Fprintf(os.Stderr, "    warning: stash restore failed for %s: %v\n", stash.Ref, err)
-		}
-	}
-
-	// copy untracked files from snapshot's untracked/<repo>/ directory
-	if len(rs.Untracked) > 0 {
-		untrackedDir := filepath.Join(snapDir, "untracked", rs.Name)
-		for _, file := range rs.Untracked {
-			src := filepath.Join(untrackedDir, file)
-			dst := filepath.Join(targetDir, file)
-			if err := copyFile(src, dst); err != nil {
-				fmt.Fprintf(os.Stderr, "    warning: restore untracked %s: %v\n", file, err)
-			}
-		}
-	}
-
+	restoreWorkingState(rs, targetDir, snapDir)
 	return nil
 }
 
 func updateRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
-	// update existing repo: fetch all remotes and reset to snapshot state
-	if err := git.FetchAll(targetDir); err != nil {
-		fmt.Fprintf(os.Stderr, "    warning: fetch failed: %v\n", err)
+	if git.IsDirty(targetDir) {
+		return fmt.Errorf("target repo has local changes; refusing to update existing repo: %s", targetDir)
 	}
 
-	// checkout branch or detached commit
+	if err := ensureSnapshotRemotes(rs, targetDir); err != nil {
+		return err
+	}
+
+	if len(rs.Remotes) > 0 {
+		if err := git.FetchAll(targetDir); err != nil {
+			return fmt.Errorf("fetch: %w", err)
+		}
+	}
+
+	if err := checkoutSnapshotRef(rs, targetDir); err != nil {
+		return err
+	}
+
+	restoreWorkingState(rs, targetDir, snapDir)
+	return nil
+}
+
+func ensureSnapshotRemotes(rs snapshot.RepoSnap, targetDir string) error {
+	for _, remote := range rs.Remotes {
+		if remote.Name == "" {
+			continue
+		}
+
+		currentURL, err := git.ConfigGet(targetDir, "remote."+remote.Name+".url")
+		if err != nil {
+			if err := git.AddRemote(targetDir, remote.Name, remote.URL); err != nil {
+				return fmt.Errorf("add remote %s: %w", remote.Name, err)
+			}
+			continue
+		}
+
+		if currentURL != remote.URL {
+			if err := git.SetRemoteURL(targetDir, remote.Name, remote.URL); err != nil {
+				return fmt.Errorf("set remote %s url: %w", remote.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+func checkoutSnapshotRef(rs snapshot.RepoSnap, targetDir string) error {
 	if rs.Detached {
-		_ = git.Checkout(targetDir, rs.HeadCommit)
-	} else if rs.CurrentBranch != "" {
-		// checkout the branch and reset to remote state
-		_ = git.Checkout(targetDir, rs.CurrentBranch)
-		// reset to origin/<branch> to get latest changes
-		_ = git.ResetToRemote(targetDir, rs.CurrentBranch)
+		if rs.HeadCommit == "" {
+			return fmt.Errorf("detached repo %s has no head commit", rs.Name)
+		}
+		if err := git.Checkout(targetDir, rs.HeadCommit); err != nil {
+			return fmt.Errorf("checkout %s: %w", rs.HeadCommit, err)
+		}
+		return nil
 	}
 
+	if rs.CurrentBranch != "" {
+		if rs.HeadCommit == "" {
+			if err := git.Checkout(targetDir, rs.CurrentBranch); err != nil {
+				return fmt.Errorf("checkout branch %s: %w", rs.CurrentBranch, err)
+			}
+			return nil
+		}
+		if err := git.CheckoutBranchAt(targetDir, rs.CurrentBranch, rs.HeadCommit); err != nil {
+			return fmt.Errorf("checkout branch %s at %s: %w", rs.CurrentBranch, rs.HeadCommit, err)
+		}
+		if upstream := branchUpstream(rs, rs.CurrentBranch); upstream != "" {
+			_ = git.TrackBranch(targetDir, rs.CurrentBranch, upstream)
+		}
+		return nil
+	}
+
+	if rs.HeadCommit != "" {
+		if err := git.Checkout(targetDir, rs.HeadCommit); err != nil {
+			return fmt.Errorf("checkout %s: %w", rs.HeadCommit, err)
+		}
+	}
+	return nil
+}
+
+func branchUpstream(rs snapshot.RepoSnap, branch string) string {
+	for _, b := range rs.Branches {
+		if b.Name == branch {
+			return b.Upstream
+		}
+	}
+	return ""
+}
+
+func restoreWorkingState(rs snapshot.RepoSnap, targetDir, snapDir string) {
 	// apply staged patch
 	if rs.StagedPatch != "" {
 		if err := git.ApplyCached(targetDir, rs.StagedPatch); err != nil {
@@ -196,8 +237,6 @@ func updateRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 			}
 		}
 	}
-
-	return nil
 }
 
 // copyFile copies a single file, creating parent directories as needed.
