@@ -146,6 +146,11 @@ func Checkout(dir, ref string) error {
 	return RunSilent(dir, "checkout", ref)
 }
 
+// CheckoutBranchAt creates or resets branch at ref and checks it out.
+func CheckoutBranchAt(dir, branch, ref string) error {
+	return RunSilent(dir, "checkout", "-B", branch, ref)
+}
+
 // ApplyCached applies a patch to the staging area and updates the working tree.
 func ApplyCached(dir, patch string) error {
 	cmd := exec.Command("git", "apply", "--cached")
@@ -177,14 +182,22 @@ func Apply(dir, patch string) error {
 // index and working tree, then stashing. This is approximate — the exact
 // stash commit graph cannot be perfectly recreated.
 func StashApply(dir, patch string) error {
-	// apply to index and working tree simultaneously
+	// Try --index first for exact match, fall back to --3way if index state differs
 	cmd := exec.Command("git", "apply", "--index")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(patch)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git apply --index: %w\n%s", err, stderr.String())
+		// Index state doesn't match patch expectations, try 3-way merge
+		cmd3 := exec.Command("git", "apply", "--3way")
+		cmd3.Dir = dir
+		cmd3.Stdin = strings.NewReader(patch)
+		var stderr3 bytes.Buffer
+		cmd3.Stderr = &stderr3
+		if err3 := cmd3.Run(); err3 != nil {
+			return fmt.Errorf("git apply --3way: %w\n%s", err3, stderr3.String())
+		}
 	}
 	// materialize any new files from index
 	_ = RunSilent(dir, "checkout-index", "-a")
@@ -195,6 +208,11 @@ func StashApply(dir, patch string) error {
 // AddRemote adds a named remote.
 func AddRemote(dir, name, url string) error {
 	return RunSilent(dir, "remote", "add", name, url)
+}
+
+// SetRemoteURL updates a named remote URL.
+func SetRemoteURL(dir, name, url string) error {
+	return RunSilent(dir, "remote", "set-url", name, url)
 }
 
 // TrackBranch sets up local branch to track a remote branch.
@@ -215,6 +233,16 @@ func ConfigSet(dir, key, value string) error {
 // FetchAll fetches all remotes.
 func FetchAll(dir string) error {
 	return RunSilent(dir, "fetch", "--all")
+}
+
+// ResetHard resets the working tree and index to match HEAD.
+func ResetHard(dir string) error {
+	return RunSilent(dir, "reset", "--hard")
+}
+
+// ResetToRemote resets the current branch to match its remote tracking branch.
+func ResetToRemote(dir, branch string) error {
+	return RunSilent(dir, "reset", "--hard", "origin/"+branch)
 }
 
 // AheadBehind returns (ahead, behind) counts for the current branch
