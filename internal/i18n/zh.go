@@ -81,4 +81,10 @@ var zh = map[string]string{
 	"restore.dry_run":  "[试运行] 将恢复 %s -> %s",
 	"restore.restored": "已恢复 %s",
 	"restore.updated":  "已更新 %s（仓库已存在）",
+
+	// sync
+	"sync.short":       "拉取所有已注册仓库的最新更改",
+	"sync.flag.group":  "仅同步此分组中的仓库",
+	"sync.flag.remote": "远程名称（默认: origin）",
+	"sync.summary":     "已同步 %d 个仓库，%d 个已更新，%d 个出错。",
 }

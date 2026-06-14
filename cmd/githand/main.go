@@ -48,6 +48,7 @@ func init() {
 	rootCmd.AddCommand(lsCmd)
 	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(groupCmd)
+	rootCmd.AddCommand(syncCmd)
 	rootCmd.Version, _ = normalizeBuildInfo(version, commit)
 	rootCmd.SetVersionTemplate(versionTemplate(version, commit, date))
 	applyTranslations(rootCmd)
@@ -208,6 +209,12 @@ func applyTranslations(root *cobra.Command) {
 					f.Usage = i18n.Tf("cobra.help_flag", gsub.Name())
 				}
 			}
+		case "sync":
+			sub.Short = i18n.T("sync.short")
+			translateFlags(sub, map[string]string{
+				"group":  "sync.flag.group",
+				"remote": "sync.flag.remote",
+			})
 		}
 		// Translate --help flag for each sub-command.
 		if f := sub.Flags().Lookup("help"); f != nil {

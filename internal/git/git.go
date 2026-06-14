@@ -8,6 +8,7 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,23 @@ func RunSilent(dir string, args ...string) error {
 		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, stderr.String())
 	}
 	return nil
+}
+
+// Pull runs git pull with the given args in the specified directory.
+// Returns stdout on success. On failure, returns stdout, stderr, and the error.
+// Forces LC_ALL=C so output is always English and parseable.
+func Pull(dir string, args ...string) (string, string, error) {
+	cmdArgs := append([]string{"pull"}, args...)
+	cmd := exec.Command("git", cmdArgs...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return stdout.String(), stderr.String(), fmt.Errorf("git pull: %w", err)
+	}
+	return strings.TrimRight(stdout.String(), "\n"), "", nil
 }
 
 // IsRepo returns true if dir is inside a git working tree.
@@ -233,6 +251,11 @@ func ConfigSet(dir, key, value string) error {
 // FetchAll fetches all remotes.
 func FetchAll(dir string) error {
 	return RunSilent(dir, "fetch", "--all")
+}
+
+// FetchRemote fetches a single named remote.
+func FetchRemote(dir, remote string) error {
+	return RunSilent(dir, "fetch", remote)
 }
 
 // ResetHard resets the working tree and index to match HEAD.

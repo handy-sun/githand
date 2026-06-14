@@ -88,4 +88,10 @@ var en = map[string]string{
 	"restore.dry_run":  "[dry-run] would restore %s -> %s",
 	"restore.restored": "restored %s",
 	"restore.updated":  "updated %s (already exists)",
+
+	// sync
+	"sync.short":       "Pull latest changes for all registered repos",
+	"sync.flag.group":  "sync only repos in this group",
+	"sync.flag.remote": "remote name (default: origin)",
+	"sync.summary":     "%d repo(s) synced, %d updated, %d error(s).",
 }
