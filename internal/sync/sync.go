@@ -11,10 +11,12 @@ import (
 
 // Result holds the outcome of syncing a single repo.
 type Result struct {
-	Name   string
-	Path   string
-	Status string // "updated", "up-to-date", "fetched", "skipped", "error"
-	Detail string // human-readable detail (branch, remote, error message)
+	Name    string
+	Path    string
+	Status  string // "updated", "up-to-date", "fetched", "skipped", "error"
+	Detail  string // human-readable detail (branch, remote, error message)
+	OldHash string // HEAD short hash before pull (empty if unchanged)
+	NewHash string // HEAD short hash after pull (empty if unchanged)
 }
 
 // Run syncs all registered repos from their remotes concurrently.
@@ -72,6 +74,9 @@ func syncOne(repo config.Repo, remote string) Result {
 		return r
 	}
 
+	// Record HEAD before pull
+	oldHash := git.ShortHash(dir)
+
 	// Check pull.rebase config
 	useRebase := pullRebase(dir)
 
@@ -105,6 +110,9 @@ func syncOne(repo config.Repo, remote string) Result {
 		r.Status = "up-to-date"
 	} else {
 		r.Status = "updated"
+		newHash := git.ShortHash(dir)
+		r.OldHash = oldHash
+		r.NewHash = newHash
 	}
 	r.Detail = branch
 	return r

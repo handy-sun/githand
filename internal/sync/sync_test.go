@@ -42,6 +42,12 @@ func TestSyncPullsNewCommit(t *testing.T) {
 	if results[0].Status != "updated" {
 		t.Errorf("expected updated, got %s: %s", results[0].Status, results[0].Detail)
 	}
+	if results[0].OldHash == "" || results[0].NewHash == "" {
+		t.Errorf("expected hash range, got old=%q new=%q", results[0].OldHash, results[0].NewHash)
+	}
+	if results[0].OldHash == results[0].NewHash {
+		t.Errorf("hash should change on update, both are %s", results[0].OldHash)
+	}
 	if _, err := os.Stat(filepath.Join(clone, "new.txt")); err != nil {
 		t.Errorf("new.txt should exist after pull: %v", err)
 	}

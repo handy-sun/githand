@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/handy-sun/githand/internal/display"
 	"github.com/handy-sun/githand/internal/i18n"
 	synccmd "github.com/handy-sun/githand/internal/sync"
 	"github.com/spf13/cobra"
@@ -25,9 +26,18 @@ var syncCmd = &cobra.Command{
 		for _, r := range results {
 			switch r.Status {
 			case "updated":
-				fmt.Printf("  %-20s  %s\n", r.Name, r.Detail)
+				if r.OldHash != "" && r.NewHash != "" {
+					revRange := fmt.Sprintf("%s..%s", r.OldHash, r.NewHash)
+					fmt.Printf("  %s  %s\n",
+						display.Greenf("%-20s  %s", r.Name, revRange),
+						r.Detail)
+				} else {
+					fmt.Printf("  %s  %s\n",
+						display.Green(r.Name),
+						r.Detail)
+				}
 			case "up-to-date":
-				fmt.Printf("  %-20s  %s (up to date)\n", r.Name, r.Detail)
+				fmt.Printf("  %-20s  %s\n", r.Name, r.Detail)
 			case "fetched":
 				fmt.Printf("  %-20s  %s\n", r.Name, r.Detail)
 			case "skipped":

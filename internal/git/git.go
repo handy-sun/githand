@@ -81,6 +81,21 @@ func CurrentBranch(dir string) string {
 	return out
 }
 
+// ShortHash returns the short commit hash for the given ref (default HEAD).
+func ShortHash(dir string, ref ...string) string {
+	args := []string{"rev-parse", "--short"}
+	if len(ref) == 0 {
+		args = append(args, "HEAD")
+	} else {
+		args = append(args, ref...)
+	}
+	out, err := Run(dir, args...)
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
 // HEADCommit returns the current HEAD commit hash.
 func HEADCommit(dir string) (string, error) {
 	return Run(dir, "rev-parse", "HEAD")
