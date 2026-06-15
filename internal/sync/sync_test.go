@@ -15,7 +15,7 @@ func TestSyncCleanUpToDate(t *testing.T) {
 
 	_ = pusher
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -37,7 +37,7 @@ func TestSyncPullsNewCommit(t *testing.T) {
 	mustGit(t, pusher, "push")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if results[0].Status != "updated" {
 		t.Errorf("expected updated, got %s: %s", results[0].Status, results[0].Detail)
@@ -68,7 +68,7 @@ func TestSyncDirtyWorktree(t *testing.T) {
 	os.WriteFile(filepath.Join(clone, "local.txt"), []byte("local change"), 0o644)
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if results[0].Status != "updated" {
 		t.Errorf("expected updated, got %s: %s", results[0].Status, results[0].Detail)
@@ -98,7 +98,7 @@ func TestSyncDetachedHEAD(t *testing.T) {
 	mustGit(t, pusher, "push")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if results[0].Status != "fetched" {
 		t.Errorf("expected fetched for detached HEAD, got %s: %s", results[0].Status, results[0].Detail)
@@ -109,7 +109,7 @@ func TestSyncNonGitDir(t *testing.T) {
 	dir := t.TempDir()
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "notagit", Path: dir}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if results[0].Status != "skipped" {
 		t.Errorf("expected skipped, got %s", results[0].Status)
@@ -131,7 +131,7 @@ func TestSyncGroupFilter(t *testing.T) {
 		},
 	}
 
-	results := Run(reg, "a", "origin", 4)
+	results := Run(reg, "a", "origin", 4, nil)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result for group 'a', got %d", len(results))
 	}
@@ -155,7 +155,7 @@ func TestSyncPullRebase(t *testing.T) {
 	mustGit(t, pusher, "push")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "origin", 4)
+	results := Run(reg, "", "origin", 4, nil)
 
 	if results[0].Status != "updated" {
 		t.Errorf("expected updated, got %s: %s", results[0].Status, results[0].Detail)
@@ -173,7 +173,7 @@ func TestSyncDefaultRemote(t *testing.T) {
 
 	// Use empty remote — should default to origin
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: clone}}}
-	results := Run(reg, "", "", 4)
+	results := Run(reg, "", "", 4, nil)
 
 	if results[0].Status != "up-to-date" {
 		t.Errorf("expected up-to-date with default remote, got %s: %s", results[0].Status, results[0].Detail)

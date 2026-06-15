@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/handy-sun/githand/internal/display"
 	"github.com/handy-sun/githand/internal/i18n"
@@ -21,43 +22,55 @@ var syncCmd = &cobra.Command{
 		_, cfg, reg := mustLoadConfig()
 
 		workers := cfg.Status.Workers
-		results := synccmd.Run(&reg, syncGroup, syncRemote, workers)
+		updated, failed := 0, 0
 
-		for _, r := range results {
+		results := synccmd.Run(&reg, syncGroup, syncRemote, workers, func(r synccmd.Result) {
+			// Repo name header
+			switch r.Status {
+			case "updated":
+				fmt.Println(display.Green(r.Name))
+			case "error":
+				fmt.Printf("%s (error)\n", r.Name)
+			default:
+				fmt.Println(r.Name)
+			}
+
+			// Git pull output (indented)
+			if r.GitOut != "" {
+				for _, line := range strings.Split(r.GitOut, "\n") {
+					if s := strings.TrimSpace(line); s != "" {
+						fmt.Printf("    %s\n", s)
+					}
+				}
+			}
+
+			// Result line
 			switch r.Status {
 			case "updated":
 				if r.OldHash != "" && r.NewHash != "" {
-					revRange := fmt.Sprintf("%s..%s", r.OldHash, r.NewHash)
-					fmt.Printf("  %s  %s\n",
-						display.Greenf("%-20s  %s", r.Name, revRange),
-						r.Detail)
+					fmt.Printf("    %s\n", display.Greenf("%s..%s (%s)", r.OldHash, r.NewHash, r.Detail))
 				} else {
-					fmt.Printf("  %s  %s\n",
-						display.Green(r.Name),
-						r.Detail)
+					fmt.Printf("    %s\n", display.Green(r.Detail))
 				}
-			case "up-to-date":
-				fmt.Printf("  %-20s  %s\n", r.Name, r.Detail)
-			case "fetched":
-				fmt.Printf("  %-20s  %s\n", r.Name, r.Detail)
-			case "skipped":
-				fmt.Printf("  %-20s  skipped: %s\n", r.Name, r.Detail)
-			case "error":
-				fmt.Printf("  %-20s  error: %s\n", r.Name, r.Detail)
-			}
-		}
-
-		// Summary
-		updated, failed := 0, 0
-		for _, r := range results {
-			switch r.Status {
-			case "updated", "fetched":
 				updated++
+			case "up-to-date":
+				// No extra line — git output already says it
+			case "fetched":
+				fmt.Printf("    fetched (%s)\n", r.Detail)
+				updated++
+			case "skipped":
+				fmt.Printf("    skipped: %s\n", r.Detail)
 			case "error":
+				if r.Detail != "" {
+					fmt.Printf("    %s\n", r.Detail)
+				}
 				failed++
 			}
-		}
-		fmt.Println()
+
+			fmt.Println()
+		})
+
+		// Summary
 		fmt.Println(i18n.Tf("sync.summary", len(results), updated, failed))
 		return nil
 	},

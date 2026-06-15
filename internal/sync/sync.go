@@ -3,6 +3,7 @@ package sync
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/handy-sun/githand/internal/config"
 	"github.com/handy-sun/githand/internal/git"
@@ -17,12 +18,14 @@ type Result struct {
 	Detail  string // human-readable detail (branch, remote, error message)
 	OldHash string // HEAD short hash before pull (empty if unchanged)
 	NewHash string // HEAD short hash after pull (empty if unchanged)
+	GitOut  string // raw git pull output (stdout + stderr)
 }
 
 // Run syncs all registered repos from their remotes concurrently.
 // If group is non-empty, only repos in that group are synced.
 // remote defaults to "origin" when empty.
-func Run(reg *config.Registry, group, remote string, workers int) []Result {
+// onResult is called (under a mutex) as each repo finishes; may be nil.
+func Run(reg *config.Registry, group, remote string, workers int, onResult func(Result)) []Result {
 	repos := reg.Repos
 	if group != "" {
 		repos = reg.ReposInGroup(group)
@@ -32,13 +35,20 @@ func Run(reg *config.Registry, group, remote string, workers int) []Result {
 	}
 
 	results := make([]Result, len(repos))
+	var mu sync.Mutex
 	eg := &errgroup.Group{}
 	eg.SetLimit(workers)
 
 	for i, repo := range repos {
 		i, repo := i, repo
 		eg.Go(func() error {
-			results[i] = syncOne(repo, remote)
+			r := syncOne(repo, remote)
+			results[i] = r
+			if onResult != nil {
+				mu.Lock()
+				onResult(r)
+				mu.Unlock()
+			}
 			return nil
 		})
 	}
@@ -89,6 +99,11 @@ func syncOne(repo config.Repo, remote string) Result {
 	}
 
 	stdout, stderr, err := git.Pull(dir, pullArgs...)
+
+	// Combine output for display
+	out := strings.TrimSpace(stdout + "\n" + stderr)
+	r.GitOut = out
+
 	if err != nil {
 		// Old git: "Already up to date" comes with exit code 1
 		if containsUpToDate(stderr) || containsUpToDate(stdout) {
