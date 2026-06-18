@@ -8,6 +8,7 @@ import (
 // ANSI color codes.
 const (
 	greenCode = "\033[32m"
+	redCode   = "\033[31m"
 	resetCode = "\033[0m"
 )
 
@@ -26,4 +27,17 @@ func Green(s string) string {
 // Greenf formats and wraps in green ANSI codes.
 func Greenf(format string, a ...any) string {
 	return Green(fmt.Sprintf(format, a...))
+}
+
+// Red wraps s in red ANSI codes (unless NO_COLOR is set).
+func Red(s string) string {
+	if noColor {
+		return s
+	}
+	return redCode + s + resetCode
+}
+
+// Redf formats and wraps in red ANSI codes.
+func Redf(format string, a ...any) string {
+	return Red(fmt.Sprintf(format, a...))
 }

@@ -30,7 +30,7 @@ var syncCmd = &cobra.Command{
 			case "updated":
 				fmt.Println(display.Green(r.Name))
 			case "error":
-				fmt.Printf("%s (error)\n", r.Name)
+				fmt.Println(display.Redf("%s (error)", r.Name))
 			default:
 				fmt.Println(r.Name)
 			}
@@ -62,7 +62,7 @@ var syncCmd = &cobra.Command{
 				fmt.Printf("    skipped: %s\n", r.Detail)
 			case "error":
 				if r.Detail != "" {
-					fmt.Printf("    %s\n", r.Detail)
+					fmt.Printf("    %s\n", display.Red(r.Detail))
 				}
 				failed++
 			}
