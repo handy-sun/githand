@@ -36,6 +36,7 @@ type RepoSnap struct {
 	HeadCommit    string       `json:"head_commit"`
 	Detached      bool         `json:"detached"`
 	Dirty         bool         `json:"dirty"`
+	HooksPath     string       `json:"hooks_path,omitempty"`
 	StagedPatch   string       `json:"staged_patch,omitempty"`
 	UnstagedPatch string       `json:"unstaged_patch,omitempty"`
 	Stashes       []StashSnap  `json:"stashes,omitempty"`
@@ -129,6 +130,11 @@ func snapshotRepo(basePath string, repo config.Repo) (RepoSnap, error) {
 	commit, _ := git.HEADCommit(dir)
 	rs.HeadCommit = commit
 	rs.Dirty = git.IsDirty(dir)
+
+	// core.hooksPath (effective value — may come from local/global/system config)
+	if hp, err := git.ConfigGet(dir, "core.hooksPath"); err == nil {
+		rs.HooksPath = hp
+	}
 
 	// remotes
 	remotesStr, _ := git.Remotes(dir)

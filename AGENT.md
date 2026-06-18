@@ -1,23 +1,10 @@
 # githand
 
-Git workspace sync and migration CLI. The tool scans a directory for git repos, displays multi-repo status, snapshots full repo state, and restores that state on another machine, including uncommitted work.
+Git workspace sync and migration CLI. The tool scans a directory for git repos, displays multi-repo status, pulls latest changes, snapshots full repo state, and restores that state on another machine, including uncommitted work.
 
-## Migration Direction
-
-The next major implementation should rewrite the project in Go.
-
-Primary goals:
-
-- Ship a portable single-file binary for macOS, Linux, and Windows.
-- Keep runtime dependencies minimal. The binary may depend on the system `git` executable, but should not require Python, uv, or a language runtime.
-- Improve startup time, concurrency control, and packaging.
-- Use the rewrite as a practical Go learning project covering CLI design, subprocesses, filesystem work, archive handling, structured config, and tests.
-
-Do not preserve compatibility with the current Python module layout, internal APIs, or old JSON registry files. The command surface may stay conceptually similar, but the implementation can be redesigned around Go packages and TOML-based local state.
+Implemented in Go as a single binary that shells out to the system `git` for all repository operations.
 
 ## Command Surface
-
-Keep the main commands recognizable:
 
 ```text
 githand scan <path>                    # scan directory, register repos
@@ -25,6 +12,7 @@ githand scan <path> --recursive        # scan recursively
 githand scan <path> --auto-group       # auto-create groups by subdirectory
 
 githand status                         # show all repo statuses
+githand status --sync                  # auto-sync registry (detect added/removed repos)
 githand status --filter dirty          # only repos with uncommitted changes
 githand status --filter ahead          # only repos ahead of remote
 githand status --filter stash          # only repos with stash entries
@@ -33,13 +21,18 @@ githand status --group nix             # only repos in group "nix"
 githand status --user handy-sun        # filter by remote URL owner
 githand status --json                  # machine-readable output
 
+githand sync                           # pull latest for all registered repos
+githand sync --group nix               # only repos in group "nix"
+githand sync --remote upstream         # pull from a non-default remote
+
 githand snapshot [-o output_dir]       # snapshot all registered repos
 githand snapshot --group nix           # snapshot only a group
 githand snapshot --filter dirty        # snapshot only matching repos
+githand snapshot --archive             # also pack the snapshot directory as .tar
 
-githand restore <snapshot.json> <target_dir>
-githand restore <snapshot.json> <target_dir> --base-path <new_root>
-githand restore <snapshot.json> <target_dir> --dry-run
+githand restore <snapshot.json|dir> <target_dir>
+githand restore <snapshot.json|dir> <target_dir> --base-path <new_root>
+githand restore <snapshot.json|dir> <target_dir> --dry-run
 
 githand ls                             # list repo names
 githand rm <name>                      # remove repo from registry
@@ -48,11 +41,9 @@ githand group rm <group>
 githand group ls
 ```
 
-The exact flags may evolve during the Go rewrite, but avoid changing semantics without a clear reason.
+The `restore` command accepts either the snapshot directory (containing `snapshot.json`) or the JSON file directly. Snapshot output may be a single `.json` file when no untracked files are present, or a directory layout when untracked payloads must travel alongside the manifest.
 
-## Go Implementation Guidance
-
-Prefer a simple package layout:
+## Implementation Layout
 
 ```text
 cmd/githand/           # main package and CLI wiring
@@ -60,26 +51,26 @@ internal/config/       # githand.toml and repos.toml load/save
 internal/git/          # system git command wrapper and git parsing helpers
 internal/discover/     # repo discovery
 internal/status/       # status collection and filtering
+internal/sync/         # parallel pull worker pool
 internal/snapshot/     # snapshot model, JSON serialization, untracked archives
 internal/restore/      # clone, checkout, patch apply, stash restore, extraction
-internal/display/      # terminal formatting and JSON output
+internal/display/      # terminal formatting (colors, table layout) and JSON output
+internal/i18n/         # English and Chinese translations, locale selection
 ```
 
-Recommended libraries:
+Dependencies (kept minimal):
 
 - CLI: `github.com/spf13/cobra`
 - TOML: `github.com/pelletier/go-toml/v2`
-- Optional concurrent error handling: `golang.org/x/sync/errgroup`
+- Bounded concurrency: `golang.org/x/sync/errgroup`
 
-Keep Git operations backed by the system `git` command through `os/exec`. Do not replace core behavior with `go-git` unless there is a narrow, well-tested reason. This project depends on porcelain behavior such as `git diff`, `git apply`, `git stash`, `git clone`, branch tracking, and config handling.
+Git operations are backed by the system `git` command through `os/exec`. Do not replace core behavior with `go-git` unless there is a narrow, well-tested reason. This project depends on porcelain behavior such as `git diff`, `git apply`, `git stash`, `git clone`, `git pull`, branch tracking, and config handling.
 
-Keep the implementation pure Go with cgo disabled where possible so cross-compilation remains straightforward.
+The build is pure Go with cgo disabled so cross-compilation remains straightforward.
 
 ## File Formats
 
-Use TOML for user-edited local state and configuration. Keep snapshots as JSON because they are machine-generated migration artifacts containing large structured data and multi-line patch text.
-
-No compatibility with old `repos.json` is required.
+User-edited local state and configuration use TOML. Snapshots use JSON because they are machine-generated migration artifacts containing large structured data and multi-line patch text.
 
 ### Config File
 
@@ -91,7 +82,7 @@ Path:
 
 If `GITHAND_HOME` is set, use that directory instead of `~/.config/githand`.
 
-Proposed format:
+Format:
 
 ```toml
 version = 1
@@ -103,6 +94,7 @@ auto_group = true
 [status]
 workers = 8
 json = false
+auto_sync = false
 
 [snapshot]
 output_dir = "~/.cache/githand"
@@ -112,7 +104,7 @@ include_clean = true
 dry_run = false
 ```
 
-Configuration should provide defaults only. Explicit CLI flags override config file values.
+Configuration provides defaults only. Explicit CLI flags override config file values.
 
 ### Repo Registry
 
@@ -122,7 +114,7 @@ Path:
 ~/.config/githand/repos.toml
 ```
 
-Proposed format:
+Format:
 
 ```toml
 version = 1
@@ -153,16 +145,22 @@ Design notes:
 
 ### Snapshot Format
 
-Keep snapshot metadata as JSON:
+Snapshot metadata lives as JSON. Two layouts depending on payload:
 
 ```text
+# JSON-only (no untracked files)
+githand-snapshot.MMDD-HHmmss.json
+
+# Directory layout (when untracked files are captured)
 githand-snapshot.MMDD-HHmmss/
   snapshot.json
   untracked/
     repo-name/
 ```
 
-The JSON should remain the authoritative manifest:
+With `--archive`, the directory layout is also packed as `githand-snapshot.MMDD-HHmmss.tar` next to the folder.
+
+The JSON manifest is authoritative and includes:
 
 - schema version
 - creation timestamp
@@ -173,88 +171,98 @@ The JSON should remain the authoritative manifest:
 - remotes
 - branches
 - current branch or detached HEAD commit
-- git config data when needed
+- `core.hooksPath` config (effective value)
 - dirty flags
 - staged patch text
 - unstaged patch text
 - stash patch text
 - untracked file paths
 
-Do not store binary untracked files as base64 in JSON. Keep them as files under the snapshot directory.
-
-If a single-file transfer format is needed later, add an archive command that packages:
-
-```text
-snapshot.json
-data/
-  untracked/...
-```
-
-inside a `.tar.gz`. The internal manifest should still be JSON.
+Binary untracked files are kept as files under the snapshot directory, not inlined as base64 in JSON.
 
 ## Core Flows
 
 ### scan
 
-Resolve path, walk directories, identify git repos, deduplicate by absolute path, assign optional auto-group, write `repos.toml`.
+Resolve path, walk directories, identify git repos, deduplicate by absolute path, assign optional auto-group, write `repos.toml`. On first scan the directory is recorded as `base_path`; subsequent scans preserve it.
 
 ### status
 
-Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data.
+Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data. With `--sync` (or `status.auto_sync = true` in config), the registry is reconciled against disk before status collection: removed repos are pruned, new repos under `base_path` are added.
 
 Use a bounded worker count from config or CLI. Default to 8 workers.
+
+### sync
+
+Load registry and config, then for each repo in parallel (bounded worker count):
+
+1. skip if not a git repo
+2. if detached HEAD, `git fetch` only and report `fetched`
+3. otherwise record HEAD, run `git pull --autostash [--rebase|--no-rebase] <remote> <branch>`
+4. classify the result as `updated`, `up-to-date`, or `error` (parsing both old `Already up to date.` and git 2.54+ `ok` outputs)
+5. stream the repo's git output inline, coloring the repo name green on update and red on error
+
+`pull.rebase` is honored per-repo. `--remote` defaults to `origin`.
 
 ### snapshot
 
 Load registry and config, select repos, then for each repo:
 
 1. collect remotes, branches, current branch, HEAD commit, dirty flags
-2. collect staged patch with `git diff --cached`
-3. collect unstaged patch with `git diff`
-4. collect stash patches from `git stash list` and `git stash show -p`
-5. collect untracked files with `git ls-files --others --exclude-standard`
-6. archive untracked files into the sibling data directory
-7. compute repo path relative to `base_path`
-8. write the workspace snapshot JSON manifest
+2. collect `core.hooksPath` (effective value via `git config --get`)
+3. collect staged patch with `git diff --cached`
+4. collect unstaged patch with `git diff`
+5. collect stash patches from `git stash list` and `git stash show -p`
+6. collect untracked files with `git ls-files --others --exclude-standard`
+7. copy untracked files into the sibling `untracked/<repo>/` directory
+8. compute repo path relative to `base_path`
+9. write the workspace snapshot JSON manifest
+
+When no untracked files are captured, the snapshot is a single `.json` file. Otherwise the directory layout is used so untracked payloads travel next to `snapshot.json`. `--archive` additionally writes a `.tar` of the directory.
 
 ### restore
 
-Read snapshot JSON, locate sibling data directory, then for each repo:
+Read snapshot JSON (and locate the sibling `untracked/` directory if present), then for each repo:
 
 1. compute target repo path from restore base plus snapshot relative path
-2. clone from the primary remote
-3. add additional remotes
+2. clone from the primary remote, or update an existing repo (refuse if local working tree is dirty)
+3. add or reconcile additional remotes
 4. checkout the original branch, or checkout the recorded commit for detached HEAD
-5. create or track non-current local branches where possible
-6. merge extra git config non-destructively
+5. set up upstream tracking for the current branch
+6. restore `core.hooksPath` config (written to local repo config)
 7. apply staged patch with `git apply --cached`
 8. apply unstaged patch with `git apply`
-9. recreate stash entries from stash patches
-10. extract untracked file archives
+9. recreate stash entries from stash patches (`git apply --index` with `--3way` fallback, then `git stash`)
+10. copy untracked files from the snapshot directory
 
 After restore, status should match the original dirty state as closely as Git permits.
 
 ## Testing Priorities
 
-The Go rewrite should add tests before expanding behavior:
+Tests use temporary directories and real `git` commands. The important behavior is compatibility with Git, not mocked command strings.
+
+Coverage already includes:
 
 - registry TOML parse/write round trips
 - config defaulting and CLI override behavior
 - scan on nested temp directories
 - status collection on temp git repos
+- sync: clean up-to-date, pull new commit, dirty worktree (autostash), detached HEAD (fetch-only), non-git dir, group filter, `pull.rebase` honoring, default remote
 - snapshot/restore end-to-end with staged, unstaged, stash, and untracked files
 - binary untracked file preservation
 - detached HEAD restore
+- `core.hooksPath` capture and restore (fresh clone and existing-repo update)
 - path remapping with `--base-path`
+- snapshot directory layout, single-JSON output, and `.tar` archive contents
 
-Use temporary directories and real `git` commands in integration tests. The important behavior is compatibility with Git, not mocked command strings.
+When adding behavior, add a test alongside it.
 
 ## Design Decisions
 
-- Go rewrite is accepted for portability, packaging, startup speed, and learning value.
-- Local config and repo registry should use TOML because humans may read and edit them.
-- Snapshot manifests should stay JSON because they are machine-generated and contain large structured data plus multi-line patches.
-- The project does not need to preserve old Python internals or old JSON registry compatibility.
+- Single Go binary for portability, fast startup, and cross-compilation. Shells out to system `git` for repository behavior.
+- Local config and repo registry use TOML because humans may read and edit them.
+- Snapshot manifests use JSON because they are machine-generated and contain large structured data plus multi-line patches.
 - System `git` remains the source of truth for repository behavior.
 - Patch text plus copied untracked files remain the migration strategy for dirty state.
-- Snapshot schema versioning remains required.
+- Snapshot schema is versioned via the `schema` field so future changes can fail clearly or migrate deliberately. New optional fields (e.g. `hooks_path`) are added with `omitempty` and remain backward-compatible.
+- `restore` writes captured config values like `core.hooksPath` to local repo config so they travel with the restore without mutating global/system config.

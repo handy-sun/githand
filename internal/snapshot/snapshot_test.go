@@ -315,6 +315,47 @@ func TestSnapshotDetachedHEAD(t *testing.T) {
 	}
 }
 
+func TestSnapshotCapturesHooksPath(t *testing.T) {
+	dir := initTestRepo(t, "repo-hooks")
+	gitRun(t, dir, "config", "core.hooksPath", ".git/hooks")
+
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-hooks", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := snap.Repos[0]
+	if rs.HooksPath != ".git/hooks" {
+		t.Errorf("expected hooks_path .git/hooks, got %q", rs.HooksPath)
+	}
+}
+
+func TestSnapshotOmitsHooksPathWhenUnset(t *testing.T) {
+	dir := initTestRepo(t, "repo-no-hooks")
+
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-no-hooks", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := snap.Repos[0]
+	if rs.HooksPath != "" {
+		t.Errorf("expected empty hooks_path when unset, got %q", rs.HooksPath)
+	}
+}
+
 func TestFilterDirty(t *testing.T) {
 	repos := []RepoSnap{
 		{Name: "a", Dirty: true},

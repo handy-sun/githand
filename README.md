@@ -101,6 +101,16 @@ This way you don't need to manually run `scan` every time you add or remove repo
 | `↕` | Diverged |
 | `-` | No remote configured |
 
+### sync — pull latest changes from remotes
+
+```bash
+githand sync                            # pull latest for all registered repos
+githand sync --group nix                # only repos in group "nix"
+githand sync --remote upstream          # pull from a non-default remote
+```
+
+Pulls the current branch from each repo's remote in parallel (configurable worker count). Uses `--autostash` so dirty worktrees are preserved, and honors per-repo `pull.rebase` config. Each repo prints its git pull output inline, with the repo name colored green on update and red on error.
+
 ### snapshot — serialize workspace for migration
 
 ```bash
@@ -134,6 +144,7 @@ With `--archive`, that directory is also packed as `githand-snapshot.0515-221241
 - Remote URLs
 - All local branches with upstream tracking
 - Current branch and HEAD commit
+- `core.hooksPath` config (effective value)
 - Staged diff (`git diff --cached`)
 - Unstaged diff (`git diff`)
 - Stash entries (each as a full patch)
@@ -152,9 +163,11 @@ Restore replays each repo's snapshot in order:
 1. `git clone` from primary remote
 2. Add additional remotes
 3. `git checkout` the original branch
-4. Apply staged patch (`git apply --cached`)
-5. Apply unstaged patch (`git apply`)
-6. Apply stash patches (`git apply --index` + `git stash` for each)
+4. Restore `core.hooksPath` config (written to local config)
+5. Apply staged patch (`git apply --cached`)
+6. Apply unstaged patch (`git apply`)
+7. Apply stash patches (`git apply --index` + `git stash` for each)
+8. Copy untracked files from the snapshot directory
 
 The `--base-path` flag remaps the snapshot's original root to a new path, preserving the relative directory structure. Without it, `target_dir` is used as the base.
 

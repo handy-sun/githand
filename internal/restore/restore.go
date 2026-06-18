@@ -205,6 +205,13 @@ func branchUpstream(rs snapshot.RepoSnap, branch string) string {
 }
 
 func restoreWorkingState(rs snapshot.RepoSnap, targetDir, snapDir string) {
+	// restore core.hooksPath config (pinned to local repo so it travels with the restore)
+	if rs.HooksPath != "" {
+		if err := git.ConfigSet(targetDir, "core.hooksPath", rs.HooksPath); err != nil {
+			fmt.Fprintf(os.Stderr, "    warning: set core.hooksPath failed: %v\n", err)
+		}
+	}
+
 	// apply staged patch
 	if rs.StagedPatch != "" {
 		if err := git.ApplyCached(targetDir, rs.StagedPatch); err != nil {

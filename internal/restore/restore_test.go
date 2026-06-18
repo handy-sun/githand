@@ -521,6 +521,9 @@ func TestRestoreExistingRepoUsesSnapshotRemoteAndCommit(t *testing.T) {
 	}
 }
 
+// TestRestoreExistingRepoReturnsErrorWhenSnapshotCommitMissing verifies that
+// restoring into an existing repo fails when the snapshot's commit isn't
+// reachable from the configured remote.
 func TestRestoreExistingRepoReturnsErrorWhenSnapshotCommitMissing(t *testing.T) {
 	bareDir := initBareRepo(t, "missing-commit")
 	targetDir := t.TempDir()
@@ -536,5 +539,53 @@ func TestRestoreExistingRepoReturnsErrorWhenSnapshotCommitMissing(t *testing.T) 
 	}, repoDir, t.TempDir())
 	if err == nil {
 		t.Fatal("expected missing snapshot commit to fail")
+	}
+}
+
+// TestRestoreHooksPath verifies that core.hooksPath captured in a snapshot
+// is reapplied to the restored repo (both on fresh clone and existing repo update).
+func TestRestoreHooksPath(t *testing.T) {
+	srcDir := initWorkRepo(t, "hooks-repo")
+	gitCmd(t, srcDir, "config", "core.hooksPath", ".git/hooks")
+
+	parent := filepath.Dir(srcDir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "hooks-repo", Path: srcDir}},
+	}
+
+	snap, err := snapshot.Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Repos[0].HooksPath == "" {
+		t.Fatal("snapshot should have captured hooks_path")
+	}
+
+	tmpDir := t.TempDir()
+	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	if err := Run(snapDir, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	repoDir := filepath.Join(targetDir, "hooks-repo")
+	got := gitOut(t, repoDir, "config", "--local", "--get", "core.hooksPath")
+	if got != ".git/hooks" {
+		t.Errorf("expected local core.hooksPath .git/hooks after fresh restore, got %q", got)
+	}
+
+	// Second restore into the now-existing repo should preserve hooksPath.
+	if err := Run(snapDir, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+	got = gitOut(t, repoDir, "config", "--local", "--get", "core.hooksPath")
+	if got != ".git/hooks" {
+		t.Errorf("expected local core.hooksPath .git/hooks after update restore, got %q", got)
 	}
 }

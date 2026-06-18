@@ -101,6 +101,16 @@ githand status --json                  # 机器可读的 JSON 输出
 | `↕` | 已分叉 |
 | `-` | 无远程配置 |
 
+### sync — 拉取远程最新更改
+
+```bash
+githand sync                            # 拉取所有已注册仓库的最新代码
+githand sync --group nix                # 仅 "nix" 分组
+githand sync --remote upstream          # 从非默认远程拉取
+```
+
+并行从每个仓库的远程拉取当前分支（工作线程数可配置）。使用 `--autostash` 保留脏工作树，并遵循各仓库的 `pull.rebase` 配置。每个仓库的 git pull 输出会内联打印，仓库名在更新成功时显示为绿色，出错时显示为红色。
+
 ### snapshot — 序列化工作区用于迁移
 
 ```bash
@@ -134,6 +144,7 @@ githand-snapshot.0515-221241/
 - 远程 URL
 - 所有本地分支，含上游追踪
 - 当前分支和 HEAD 提交
+- `core.hooksPath` 配置（生效值）
 - 已暂存 diff（`git diff --cached`）
 - 未暂存 diff（`git diff`）
 - Stash 条目（每个作为完整补丁）
@@ -152,9 +163,11 @@ githand restore <snapshot.json> <target_dir> --dry-run
 1. 从主远程 `git clone`
 2. 添加额外的远程
 3. `git checkout` 到原始分支
-4. 应用暂存补丁（`git apply --cached`）
-5. 应用未暂存补丁（`git apply`）
-6. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
+4. 恢复 `core.hooksPath` 配置（写入本地配置）
+5. 应用暂存补丁（`git apply --cached`）
+6. 应用未暂存补丁（`git apply`）
+7. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
+8. 从快照目录复制未跟踪文件
 
 `--base-path` 将快照的原始根目录映射到新路径，保留相对目录结构。不指定时，`target_dir` 作为基础路径。
 
