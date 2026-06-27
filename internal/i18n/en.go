@@ -94,4 +94,9 @@ var en = map[string]string{
 	"sync.flag.group":  "sync only repos in this group",
 	"sync.flag.remote": "remote name (default: origin)",
 	"sync.summary":     "%d repo(s) synced, %d updated, %d error(s).",
+
+	// flake-update
+	"flake-update.short":       "Update Nix flake inputs for repos with flake.nix",
+	"flake-update.flag.group":  "update only repos in this group",
+	"flake-update.summary":     "%d repo(s) checked, %d updated, %d error(s).",
 }

@@ -87,4 +87,9 @@ var zh = map[string]string{
 	"sync.flag.group":  "仅同步此分组中的仓库",
 	"sync.flag.remote": "远程名称（默认: origin）",
 	"sync.summary":     "已同步 %d 个仓库，%d 个已更新，%d 个出错。",
+
+	// flake-update
+	"flake-update.short":       "更新带有 flake.nix 的仓库的 Nix flake 输入",
+	"flake-update.flag.group":  "仅更新此分组中的仓库",
+	"flake-update.summary":     "已检查 %d 个仓库，%d 个已更新，%d 个出错。",
 }

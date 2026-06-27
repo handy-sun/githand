@@ -49,6 +49,7 @@ func init() {
 	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(groupCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(flakeUpdateCmd)
 	rootCmd.Version, _ = normalizeBuildInfo(version, commit)
 	rootCmd.SetVersionTemplate(versionTemplate(version, commit, date))
 	applyTranslations(rootCmd)
@@ -214,6 +215,11 @@ func applyTranslations(root *cobra.Command) {
 			translateFlags(sub, map[string]string{
 				"group":  "sync.flag.group",
 				"remote": "sync.flag.remote",
+			})
+		case "flake-update":
+			sub.Short = i18n.T("flake-update.short")
+			translateFlags(sub, map[string]string{
+				"group": "flake-update.flag.group",
 			})
 		}
 		// Translate --help flag for each sub-command.
