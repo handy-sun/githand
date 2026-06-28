@@ -73,6 +73,48 @@ func TestFlakeUpdateGroupFilter(t *testing.T) {
 	}
 }
 
+func TestFlakeUpdateDetachedHEAD(t *testing.T) {
+	dir := t.TempDir()
+	mustGit(t, dir, "init")
+	mustGit(t, dir, "config", "user.email", "test@test.com")
+	mustGit(t, dir, "config", "user.name", "Test")
+	writeFile(t, filepath.Join(dir, "flake.nix"), []byte("{}\n"), 0o644)
+	mustGit(t, dir, "add", "flake.nix")
+	mustGit(t, dir, "commit", "-m", "initial")
+	mustGit(t, dir, "checkout", "--detach", "HEAD")
+
+	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: dir}}}
+	results := Run(reg, "", 4, nil)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != "skipped" {
+		t.Errorf("expected skipped, got %s", results[0].Status)
+	}
+	if results[0].Detail != "detached HEAD" {
+		t.Errorf("expected 'detached HEAD', got %q", results[0].Detail)
+	}
+}
+
+func TestRunNixFlakeUpdateReturnsStderrOnSuccess(t *testing.T) {
+	binDir := t.TempDir()
+	nixPath := filepath.Join(binDir, "nix")
+	writeFile(t, nixPath, []byte("#!/bin/sh\necho updated input >&2\n"), 0o755)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	stdout, stderr, err := runNixFlakeUpdate(t.TempDir())
+	if err != nil {
+		t.Fatalf("runNixFlakeUpdate returned error: %v", err)
+	}
+	if stdout != "" {
+		t.Errorf("expected empty stdout, got %q", stdout)
+	}
+	if stderr != "updated input" {
+		t.Errorf("expected stderr to be returned, got %q", stderr)
+	}
+}
+
 func TestFlakeUpdateWithFlakeNix(t *testing.T) {
 	if _, err := exec.LookPath("nix"); err != nil {
 		t.Skip("nix not available")
@@ -110,6 +152,13 @@ func TestFlakeUpdateWithFlakeNix(t *testing.T) {
 		t.Logf("nix flake update returned error (may be expected in CI): %s", r.Detail)
 	default:
 		t.Errorf("unexpected status: %s (detail: %s)", r.Status, r.Detail)
+	}
+}
+
+func writeFile(t *testing.T, path string, data []byte, perm os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, data, perm); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
 

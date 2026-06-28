@@ -43,39 +43,6 @@ githand group add <group> <repos...>   # manage groups
 githand group rm <group>
 githand group ls
 ```
-githand scan <path>                    # scan directory, register repos
-githand scan <path> --recursive        # scan recursively
-githand scan <path> --auto-group       # auto-create groups by subdirectory
-
-githand status                         # show all repo statuses
-githand status --sync                  # auto-sync registry (detect added/removed repos)
-githand status --filter dirty          # only repos with uncommitted changes
-githand status --filter ahead          # only repos ahead of remote
-githand status --filter stash          # only repos with stash entries
-githand status --filter detached       # only repos in detached HEAD
-githand status --group nix             # only repos in group "nix"
-githand status --user handy-sun        # filter by remote URL owner
-githand status --json                  # machine-readable output
-
-githand sync                           # pull latest for all registered repos
-githand sync --group nix               # only repos in group "nix"
-githand sync --remote upstream         # pull from a non-default remote
-
-githand snapshot [-o output_dir]       # snapshot all registered repos
-githand snapshot --group nix           # snapshot only a group
-githand snapshot --filter dirty        # snapshot only matching repos
-githand snapshot --archive             # also pack the snapshot directory as .tar
-
-githand restore <snapshot.json|dir> <target_dir>
-githand restore <snapshot.json|dir> <target_dir> --base-path <new_root>
-githand restore <snapshot.json|dir> <target_dir> --dry-run
-
-githand ls                             # list repo names
-githand rm <name>                      # remove repo from registry
-githand group add <group> <repos...>   # manage groups
-githand group rm <group>
-githand group ls
-```
 
 The `restore` command accepts either the snapshot directory (containing `snapshot.json`) or the JSON file directly. Snapshot output may be a single `.json` file when no untracked files are present, or a directory layout when untracked payloads must travel alongside the manifest.
 
@@ -247,11 +214,12 @@ Load registry and config, then for each repo in parallel (bounded worker count):
 
 1. skip if not a git repo
 2. skip if no `flake.nix` in repo root
-3. record HEAD hash, run `nix flake update --commit-lock-file`
-4. classify the result as `updated`, `up-to-date`, or `error`
-5. stream nix output inline, coloring the repo name green on update and red on error
+3. skip if the repo is in detached HEAD
+4. record HEAD hash, run `nix flake update --commit-lock-file`
+5. classify the result as `updated`, `up-to-date`, or `error`
+6. stream nix output inline, coloring the repo name green on update and red on error
 
-Only repos with a `flake.nix` are processed. The `--group` flag limits which repos are checked. The `nix` binary must be available on `PATH`.
+Only repos with a `flake.nix` are processed. Dirty worktrees are still processed; detached HEAD repos are skipped to avoid creating branchless update commits. The `--group` flag limits which repos are checked. The `nix` binary must be available on `PATH`.
 
 ### snapshot
 

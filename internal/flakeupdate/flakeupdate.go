@@ -19,7 +19,7 @@ import (
 type Result struct {
 	Name   string
 	Path   string
-	Status string // "updated", "skipped", "error"
+	Status string // "updated", "up-to-date", "skipped", "error"
 	Detail string // human-readable detail
 	GitOut string // raw nix flake update output (stdout + stderr)
 }
@@ -74,6 +74,12 @@ func updateOne(repo config.Repo) Result {
 		return r
 	}
 
+	if git.IsDetached(dir) {
+		r.Status = "skipped"
+		r.Detail = "detached HEAD"
+		return r
+	}
+
 	// Record HEAD before update
 	oldHash := git.ShortHash(dir)
 
@@ -117,5 +123,5 @@ func runNixFlakeUpdate(dir string) (string, string, error) {
 	if err := cmd.Run(); err != nil {
 		return stdout.String(), stderr.String(), fmt.Errorf("nix flake update: %w", err)
 	}
-	return strings.TrimRight(stdout.String(), "\n"), "", nil
+	return strings.TrimRight(stdout.String(), "\n"), strings.TrimRight(stderr.String(), "\n"), nil
 }
