@@ -26,6 +26,7 @@ githand sync --group nix               # only repos in group "nix"
 githand sync --remote upstream         # pull from a non-default remote
 
 githand flake-update                   # update Nix flake inputs for repos with flake.nix
+githand flake-update my-repo           # update a single registered repo
 githand flake-update --group nix       # only repos in group "nix"
 
 githand snapshot [-o output_dir]       # snapshot all registered repos
@@ -210,7 +211,7 @@ Load registry and config, then for each repo in parallel (bounded worker count):
 
 ### flake-update
 
-Load registry and config, then for each repo in parallel (bounded worker count):
+Load registry and config, select all repos, one named repo, or a group, then process each selected repo in parallel (bounded worker count):
 
 1. skip if not a git repo
 2. skip if no `flake.nix` in repo root
@@ -219,7 +220,7 @@ Load registry and config, then for each repo in parallel (bounded worker count):
 5. classify the result as `updated`, `up-to-date`, or `error`
 6. stream nix output inline, coloring the repo name green on update and red on error
 
-Only repos with a `flake.nix` are processed. Dirty worktrees are still processed; detached HEAD repos are skipped to avoid creating branchless update commits. The `--group` flag limits which repos are checked. The `nix` binary must be available on `PATH`.
+Only repos with a `flake.nix` are processed. Dirty worktrees are still processed; detached HEAD repos are skipped to avoid creating branchless update commits. An optional repo argument limits the update to one registered repo. The `--group` flag limits which repos are checked. The `nix` binary must be available on `PATH`.
 
 ### snapshot
 

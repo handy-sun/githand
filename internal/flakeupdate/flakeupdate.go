@@ -26,11 +26,12 @@ type Result struct {
 
 // Run updates flake inputs for all registered repos that contain a flake.nix.
 // If group is non-empty, only repos in that group are processed.
+// If repoName is non-empty, only that repo is processed.
 // onResult is called (under a mutex) as each repo finishes; may be nil.
-func Run(reg *config.Registry, group string, workers int, onResult func(Result)) []Result {
-	repos := reg.Repos
-	if group != "" {
-		repos = reg.ReposInGroup(group)
+func Run(reg *config.Registry, group, repoName string, workers int, onResult func(Result)) ([]Result, error) {
+	repos, err := selectRepos(reg, group, repoName)
+	if err != nil {
+		return nil, err
 	}
 
 	results := make([]Result, len(repos))
@@ -52,7 +53,26 @@ func Run(reg *config.Registry, group string, workers int, onResult func(Result))
 		})
 	}
 	_ = eg.Wait()
-	return results
+	return results, nil
+}
+
+func selectRepos(reg *config.Registry, group, repoName string) ([]config.Repo, error) {
+	repos := reg.Repos
+	if group != "" {
+		repos = reg.ReposInGroup(group)
+	}
+	if repoName == "" {
+		return repos, nil
+	}
+	for _, repo := range repos {
+		if repo.Name == repoName {
+			return []config.Repo{repo}, nil
+		}
+	}
+	if group != "" {
+		return nil, fmt.Errorf("repo %q not found in group %q", repoName, group)
+	}
+	return nil, fmt.Errorf("repo %q not found in registry", repoName)
 }
 
 func updateOne(repo config.Repo) Result {

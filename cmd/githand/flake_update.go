@@ -13,15 +13,20 @@ import (
 var flakeUpdateGroup string
 
 var flakeUpdateCmd = &cobra.Command{
-	Use:   "flake-update",
+	Use:   "flake-update [repo]",
 	Short: i18n.T("flake-update.short"),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, cfg, reg := mustLoadConfig()
 
 		workers := cfg.Status.Workers
+		repoName := ""
+		if len(args) > 0 {
+			repoName = args[0]
+		}
 		updated, failed := 0, 0
 
-		results := flakeupdate.Run(&reg, flakeUpdateGroup, workers, func(r flakeupdate.Result) {
+		results, err := flakeupdate.Run(&reg, flakeUpdateGroup, repoName, workers, func(r flakeupdate.Result) {
 			switch r.Status {
 			case "updated":
 				fmt.Println(display.Green(r.Name))
@@ -57,6 +62,9 @@ var flakeUpdateCmd = &cobra.Command{
 
 			fmt.Println()
 		})
+		if err != nil {
+			return err
+		}
 
 		fmt.Println(i18n.Tf("flake-update.summary", len(results), updated, failed))
 		return nil

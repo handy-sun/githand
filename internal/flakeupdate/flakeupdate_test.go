@@ -14,7 +14,10 @@ func TestFlakeUpdateNonGitDir(t *testing.T) {
 	dir := t.TempDir()
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: dir}}}
 
-	results := Run(reg, "", 4, nil)
+	results, err := Run(reg, "", "", 4, nil)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
@@ -36,7 +39,10 @@ func TestFlakeUpdateNoFlakeNix(t *testing.T) {
 	mustGit(t, dir, "commit", "-m", "initial")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: dir}}}
-	results := Run(reg, "", 4, nil)
+	results, err := Run(reg, "", "", 4, nil)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -61,15 +67,63 @@ func TestFlakeUpdateGroupFilter(t *testing.T) {
 	}
 
 	var names []string
-	results := Run(reg, "nix", 4, func(r Result) {
+	results, err := Run(reg, "nix", "", 4, func(r Result) {
 		names = append(names, r.Name)
 	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result for group filter, got %d", len(results))
 	}
 	if results[0].Name != "repo-a" {
 		t.Errorf("expected repo-a, got %s", results[0].Name)
+	}
+}
+
+func TestFlakeUpdateRepoFilter(t *testing.T) {
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
+
+	reg := &config.Registry{
+		Repos: []config.Repo{
+			{Name: "repo-a", Path: dir1},
+			{Name: "repo-b", Path: dir2},
+		},
+	}
+
+	var names []string
+	results, err := Run(reg, "", "repo-b", 4, func(r Result) {
+		names = append(names, r.Name)
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for repo filter, got %d", len(results))
+	}
+	if results[0].Name != "repo-b" {
+		t.Errorf("expected repo-b, got %s", results[0].Name)
+	}
+	if len(names) != 1 || names[0] != "repo-b" {
+		t.Errorf("expected callback for repo-b only, got %v", names)
+	}
+}
+
+func TestFlakeUpdateRepoFilterMissing(t *testing.T) {
+	reg := &config.Registry{Repos: []config.Repo{{Name: "repo-a", Path: t.TempDir()}}}
+
+	results, err := Run(reg, "", "missing", 4, nil)
+	if err == nil {
+		t.Fatal("expected error for missing repo")
+	}
+	if results != nil {
+		t.Fatalf("expected nil results for missing repo, got %v", results)
+	}
+	if !strings.Contains(err.Error(), `repo "missing" not found in registry`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -84,7 +138,10 @@ func TestFlakeUpdateDetachedHEAD(t *testing.T) {
 	mustGit(t, dir, "checkout", "--detach", "HEAD")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: dir}}}
-	results := Run(reg, "", 4, nil)
+	results, err := Run(reg, "", "", 4, nil)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -137,7 +194,10 @@ func TestFlakeUpdateWithFlakeNix(t *testing.T) {
 	mustGit(t, dir, "commit", "-m", "initial")
 
 	reg := &config.Registry{Repos: []config.Repo{{Name: "test", Path: dir}}}
-	results := Run(reg, "", 4, nil)
+	results, err := Run(reg, "", "", 4, nil)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
