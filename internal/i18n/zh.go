@@ -21,6 +21,7 @@ var zh = map[string]string{
 	"status.flag.owner":   "按远程 URL 所有者过滤",
 	"status.flag.json":    "机器可读的 JSON 输出",
 	"status.flag.sync":    "自动同步仓库列表（检测新增和删除的仓库）",
+	"status.flag.remote":  "显示主远端地址",
 	"status.sync_added":   "新增 %d 个仓库",
 	"status.sync_removed": "移除 %d 个不存在的仓库",
 
@@ -73,6 +74,7 @@ var zh = map[string]string{
 	// display
 	"display.no_repos": "未注册仓库。",
 	"display.header":   "仓库\t分支\t状态\t领先\t落后\t暂存",
+	"display.remote":   "主远端",
 	"display.clean":    "干净",
 	"display.dirty":    "脏",
 

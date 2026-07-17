@@ -108,6 +108,73 @@ func TestFilterByUser(t *testing.T) {
 	}
 }
 
+func TestPrimarySource(t *testing.T) {
+	tests := []struct {
+		name    string
+		remotes []RemoteInfo
+		want    string
+	}{
+		{
+			name: "prefers origin",
+			remotes: []RemoteInfo{
+				{Name: "upstream", URL: "https://codeberg.org/handy-sun/githand.git"},
+				{Name: "origin", URL: "https://github.com/handy-sun/githand.git"},
+			},
+			want: "github.com",
+		},
+		{
+			name: "falls back to first remote",
+			remotes: []RemoteInfo{
+				{Name: "upstream", URL: "https://codeberg.org/handy-sun/githand.git"},
+				{Name: "mirror", URL: "https://github.com/handy-sun/githand.git"},
+			},
+			want: "codeberg.org",
+		},
+		{
+			name:    "extracts scp-like SSH host",
+			remotes: []RemoteInfo{{Name: "origin", URL: "git@github.com:handy-sun/githand.git"}},
+			want:    "github.com",
+		},
+		{
+			name:    "extracts SSH URL host",
+			remotes: []RemoteInfo{{Name: "origin", URL: "ssh://git@codeberg.org/handy-sun/githand.git"}},
+			want:    "codeberg.org",
+		},
+		{
+			name:    "shows dash for local remote",
+			remotes: []RemoteInfo{{Name: "origin", URL: "/srv/git/githand.git"}},
+			want:    "-",
+		},
+		{
+			name:    "shows dash for file URL remote",
+			remotes: []RemoteInfo{{Name: "origin", URL: "file:///srv/git/githand.git"}},
+			want:    "-",
+		},
+		{
+			name:    "shows dash for malformed explicit URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "https://%zz/githand.git"}},
+			want:    "-",
+		},
+		{
+			name:    "shows dash for Windows local remote",
+			remotes: []RemoteInfo{{Name: "origin", URL: `C:\repos\githand.git`}},
+			want:    "-",
+		},
+		{
+			name: "shows dash without remotes",
+			want: "-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PrimarySource(tt.remotes); got != tt.want {
+				t.Fatalf("PrimarySource() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "githand-status-test-")

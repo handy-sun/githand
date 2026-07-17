@@ -176,6 +176,8 @@ func applyTranslations(root *cobra.Command) {
 				"group":  "status.flag.group",
 				"user":   "status.flag.owner",
 				"json":   "status.flag.json",
+				"sync":   "status.flag.sync",
+				"remote": "status.flag.remote",
 			})
 		case "snapshot":
 			sub.Short = i18n.T("snapshot.short")

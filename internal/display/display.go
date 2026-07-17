@@ -14,20 +14,24 @@ import (
 )
 
 // Status prints repo statuses to stdout.
-func Status(results []status.RepoStatus, asJSON bool) error {
+func Status(results []status.RepoStatus, asJSON, showRemote bool) error {
 	if asJSON {
 		return statusJSON(results)
 	}
-	return statusTable(results)
+	return statusTable(results, showRemote)
 }
 
-func statusTable(results []status.RepoStatus) error {
+func statusTable(results []status.RepoStatus, showRemote bool) error {
 	if len(results) == 0 {
 		fmt.Println(i18n.T("display.no_repos"))
 		return nil
 	}
 
-	rows := [][]string{strings.Split(i18n.T("display.header"), "\t")}
+	header := strings.Split(i18n.T("display.header"), "\t")
+	if showRemote {
+		header = append(header, i18n.T("display.remote"))
+	}
+	rows := [][]string{header}
 	for _, s := range results {
 		state := i18n.T("display.clean")
 		if s.Dirty {
@@ -41,14 +45,18 @@ func statusTable(results []status.RepoStatus) error {
 			}
 			branch = fmt.Sprintf("(%s)", short)
 		}
-		rows = append(rows, []string{
+		row := []string{
 			s.Repo.Name,
 			branch,
 			state,
 			fmt.Sprint(s.Ahead),
 			fmt.Sprint(s.Behind),
 			fmt.Sprint(s.StashCount),
-		})
+		}
+		if showRemote {
+			row = append(row, status.PrimarySource(s.Remotes))
+		}
+		rows = append(rows, row)
 	}
 	return writeTable(os.Stdout, rows)
 }

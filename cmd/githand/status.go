@@ -16,6 +16,7 @@ var (
 	statusOwner  string
 	statusJSON   bool
 	statusSync   bool
+	statusRemote bool
 )
 
 var statusCmd = &cobra.Command{
@@ -77,7 +78,7 @@ var statusCmd = &cobra.Command{
 			results = status.FilterByFlag(results, statusFilter)
 		}
 
-		return display.Status(results, asJSON)
+		return display.Status(results, asJSON, statusRemote)
 	},
 }
 
@@ -87,4 +88,5 @@ func init() {
 	statusCmd.Flags().StringVar(&statusOwner, "user", "", i18n.T("status.flag.owner"))
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, i18n.T("status.flag.json"))
 	statusCmd.Flags().BoolVar(&statusSync, "sync", false, i18n.T("status.flag.sync"))
+	statusCmd.Flags().BoolVar(&statusRemote, "remote", false, i18n.T("status.flag.remote"))
 }

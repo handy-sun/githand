@@ -2,6 +2,7 @@
 package status
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,51 @@ type RepoStatus struct {
 type RemoteInfo struct {
 	Name string
 	URL  string
+}
+
+// PrimarySource returns the host of the origin remote, or the first remote
+// when origin is not configured.
+func PrimarySource(remotes []RemoteInfo) string {
+	if len(remotes) == 0 {
+		return "-"
+	}
+
+	primary := remotes[0]
+	for _, remote := range remotes {
+		if remote.Name == "origin" {
+			primary = remote
+			break
+		}
+	}
+
+	if parsed, err := url.Parse(primary.URL); err == nil {
+		if host := parsed.Hostname(); host != "" {
+			return host
+		}
+	}
+	if strings.Contains(primary.URL, "://") {
+		return "-"
+	}
+
+	if len(primary.URL) >= 3 && primary.URL[1] == ':' &&
+		(primary.URL[2] == '/' || primary.URL[2] == '\\') {
+		return "-"
+	}
+
+	// Git also accepts SCP-like URLs such as git@github.com:owner/repo.git.
+	colon := strings.IndexByte(primary.URL, ':')
+	slash := strings.IndexAny(primary.URL, `/\`)
+	if colon > 0 && (slash == -1 || colon < slash) {
+		host := primary.URL[:colon]
+		if at := strings.LastIndexByte(host, '@'); at >= 0 {
+			host = host[at+1:]
+		}
+		if host != "" {
+			return host
+		}
+	}
+
+	return "-"
 }
 
 // Collect gathers status for all repos in the registry concurrently.

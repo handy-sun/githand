@@ -28,6 +28,7 @@ var en = map[string]string{
 	"status.flag.owner":   "filter by remote URL owner",
 	"status.flag.json":    "machine-readable JSON output",
 	"status.flag.sync":    "auto-sync repo list (detect added and removed repos)",
+	"status.flag.remote":  "show the primary remote host",
 	"status.sync_added":   "Added %d new repo(s)",
 	"status.sync_removed": "Removed %d missing repo(s)",
 
@@ -80,6 +81,7 @@ var en = map[string]string{
 	// display
 	"display.no_repos": "No repositories registered.",
 	"display.header":   "REPO\tBRANCH\tSTATUS\tAHEAD\tBEHIND\tSTASH",
+	"display.remote":   "REMOTE",
 	"display.clean":    "clean",
 	"display.dirty":    "dirty",
 
