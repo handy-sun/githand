@@ -3,6 +3,7 @@ package snapshot
 
 import (
 	"archive/tar"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ type RepoSnap struct {
 	Branches      []BranchSnap `json:"branches"`
 	CurrentBranch string       `json:"current_branch,omitempty"`
 	HeadCommit    string       `json:"head_commit"`
+	Bundle        bool         `json:"bundle,omitempty"`
 	Detached      bool         `json:"detached"`
 	Dirty         bool         `json:"dirty"`
 	HooksPath     string       `json:"hooks_path,omitempty"`
@@ -107,7 +109,7 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 		if err != nil {
 			return nil, fmt.Errorf("snapshot %s: %w", repo.Name, err)
 		}
-		if !includeClean && !rs.Dirty && len(rs.Stashes) == 0 && len(rs.Untracked) == 0 {
+		if !includeClean && !rs.Bundle && !rs.Dirty && len(rs.Stashes) == 0 && len(rs.Untracked) == 0 {
 			continue
 		}
 		snap.Repos = append(snap.Repos, rs)
@@ -139,6 +141,9 @@ func snapshotRepo(basePath string, repo config.Repo) (RepoSnap, error) {
 	// remotes
 	remotesStr, _ := git.Remotes(dir)
 	rs.Remotes = parseRemotes(remotesStr)
+	if rs.HeadCommit != "" && len(rs.Remotes) > 0 {
+		rs.Bundle = !git.CommitInRemoteRefs(dir, rs.HeadCommit)
+	}
 
 	// branches
 	branchesStr, _ := git.Branches(dir)
@@ -241,6 +246,27 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 		return fmt.Errorf("create snapshot dir: %w", err)
 	}
 
+	// Write incremental Git bundles before the manifest so a failed bundle
+	// cannot leave a snapshot that claims to contain the missing objects.
+	for i := range snap.Repos {
+		rs := &snap.Repos[i]
+		if !rs.Bundle {
+			continue
+		}
+		repoAbsPath := filepath.Join(basePath, filepath.FromSlash(rs.RelPath))
+		if git.CommitInRemoteRefs(repoAbsPath, rs.HeadCommit) {
+			rs.Bundle = false
+			continue
+		}
+		bundlePath := BundlePath(dir, rs.Name)
+		if err := os.MkdirAll(filepath.Dir(bundlePath), 0o755); err != nil {
+			return fmt.Errorf("create bundle dir: %w", err)
+		}
+		if err := git.CreateIncrementalBundle(repoAbsPath, bundlePath, rs.HeadCommit); err != nil {
+			return fmt.Errorf("bundle %s: %w", rs.Name, err)
+		}
+	}
+
 	// write JSON
 	jsonPath := filepath.Join(dir, SnapshotJSONName)
 	data, err := json.MarshalIndent(snap, "", "  ")
@@ -276,11 +302,11 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 
 // WriteOutput saves a snapshot using the compact output layout.
 // JSON-only snapshots are written directly to outputBase+".json".
-// Snapshots with untracked files keep the directory layout so file payloads
-// can live next to snapshot.json. If archiveDir is true, that directory is
+// Snapshots with payload files keep the directory layout so they can live
+// next to snapshot.json. If archiveDir is true, that directory is
 // also written as outputBase+".tar".
 func WriteOutput(snap *Snapshot, outputBase string, basePath string, archiveDir bool) (string, error) {
-	if HasUntracked(snap) {
+	if HasPayload(snap) {
 		if err := Write(snap, outputBase, basePath); err != nil {
 			return "", err
 		}
@@ -309,7 +335,23 @@ func WriteOutput(snap *Snapshot, outputBase string, basePath string, archiveDir 
 	return jsonPath, nil
 }
 
-// HasUntracked reports whether the snapshot needs payload files next to JSON.
+// BundlePath returns the payload path for a repository's incremental Git bundle.
+func BundlePath(snapshotDir, repoName string) string {
+	name := base64.RawURLEncoding.EncodeToString([]byte(repoName))
+	return filepath.Join(snapshotDir, "bundles", name+".bundle")
+}
+
+// HasPayload reports whether the snapshot needs files next to its manifest.
+func HasPayload(snap *Snapshot) bool {
+	for _, rs := range snap.Repos {
+		if rs.Bundle || len(rs.Untracked) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// HasUntracked reports whether the snapshot contains untracked file payloads.
 func HasUntracked(snap *Snapshot) bool {
 	for _, rs := range snap.Repos {
 		if len(rs.Untracked) > 0 {

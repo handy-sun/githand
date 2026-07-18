@@ -43,6 +43,33 @@ func TestSnapshotCleanRepo(t *testing.T) {
 	if len(rs.Remotes) == 0 {
 		t.Error("should have at least origin remote")
 	}
+	if rs.Bundle {
+		t.Error("HEAD already available from origin should not require a bundle")
+	}
+}
+
+func TestSnapshotMarksUnpushedHeadForBundle(t *testing.T) {
+	dir := initTestRepo(t, "repo-ahead")
+	for _, name := range []string{"local-1.txt", "local-2.txt", "local-3.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		gitRun(t, dir, "add", name)
+		gitRun(t, dir, "commit", "-m", "add "+name)
+	}
+
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: filepath.Dir(dir),
+		Repos:    []config.Repo{{Name: "repo-ahead", Path: dir}},
+	}
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Repos[0].Bundle {
+		t.Fatal("unpushed HEAD should require a bundle")
+	}
 }
 
 func TestSnapshotDirtyRepo(t *testing.T) {
@@ -159,6 +186,28 @@ func TestSnapshotExcludeClean(t *testing.T) {
 	}
 }
 
+func TestSnapshotExcludeCleanKeepsUnpushedHead(t *testing.T) {
+	dir := initTestRepo(t, "ahead-repo")
+	if err := os.WriteFile(filepath.Join(dir, "local.txt"), []byte("local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "local.txt")
+	gitRun(t, dir, "commit", "-m", "add local commit")
+
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: filepath.Dir(dir),
+		Repos:    []config.Repo{{Name: "ahead-repo", Path: dir}},
+	}
+	snap, err := Take(reg, reg.Repos, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Repos) != 1 || !snap.Repos[0].Bundle {
+		t.Fatalf("unpushed HEAD should be retained with include_clean=false: %#v", snap.Repos)
+	}
+}
+
 func TestSnapshotWriteJSON(t *testing.T) {
 	dir := initTestRepo(t, "repo-write")
 	parent := filepath.Dir(dir)
@@ -228,6 +277,58 @@ func TestWriteOutputWithoutUntrackedWritesSingleJSONFile(t *testing.T) {
 	}
 	if _, err := os.Stat(outputBase); !os.IsNotExist(err) {
 		t.Fatalf("snapshot directory should not be created for JSON-only snapshots")
+	}
+}
+
+func TestWriteOutputWithBundleKeepsFolder(t *testing.T) {
+	dir := initTestRepo(t, "repo-bundle-output")
+	if err := os.WriteFile(filepath.Join(dir, "local.txt"), []byte("local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "local.txt")
+	gitRun(t, dir, "commit", "-m", "add local commit")
+
+	parent := filepath.Dir(dir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "repo-bundle-output", Path: dir}},
+	}
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outputBase := filepath.Join(t.TempDir(), "githand-snapshot.0101-120000")
+	writtenPath, err := WriteOutput(snap, outputBase, parent, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writtenPath != outputBase {
+		t.Fatalf("expected folder snapshot path %s, got %s", outputBase, writtenPath)
+	}
+	if _, err := os.Stat(filepath.Join(outputBase, SnapshotJSONName)); err != nil {
+		t.Fatalf("expected snapshot manifest inside folder: %v", err)
+	}
+	if _, err := os.Stat(BundlePath(outputBase, "repo-bundle-output")); err != nil {
+		t.Fatalf("expected Git bundle payload: %v", err)
+	}
+	refs, err := git.Run(dir, "for-each-ref", "--format=%(refname)", "refs/githand/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refs != "" {
+		t.Fatalf("temporary bundle refs should be removed, got %q", refs)
+	}
+}
+
+func TestBundlePathKeepsRepoNameInsidePayloadDirectory(t *testing.T) {
+	root := t.TempDir()
+	wantDir := filepath.Join(root, "bundles")
+	for _, name := range []string{"../escape", "repo/name", `repo\name`} {
+		if gotDir := filepath.Dir(BundlePath(root, name)); gotDir != wantDir {
+			t.Fatalf("BundlePath(%q) directory = %s, want %s", name, gotDir, wantDir)
+		}
 	}
 }
 
@@ -453,6 +554,7 @@ func initTestRepo(t *testing.T, name string) string {
 	os.MkdirAll(bareDir, 0o755)
 	gitRun(t, bareDir, "init", "--bare")
 	gitRun(t, repoDir, "remote", "add", "origin", bareDir)
+	gitRun(t, repoDir, "push", "-u", "origin", "HEAD")
 
 	return repoDir
 }

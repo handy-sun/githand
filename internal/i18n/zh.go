@@ -30,7 +30,7 @@ var zh = map[string]string{
 	"snapshot.flag.output":  "存放带时间戳快照输出的父目录",
 	"snapshot.flag.group":   "仅快照此分组中的仓库",
 	"snapshot.flag.filter":  "仅快照匹配的仓库 (dirty, ahead, stash, detached)",
-	"snapshot.flag.archive": "包含未跟踪文件时，将快照目录归档为 .tar",
+	"snapshot.flag.archive": "包含附加文件时，将快照目录归档为 .tar",
 	"snapshot.written":      "快照已写入 %s（%d 个仓库）",
 
 	// restore

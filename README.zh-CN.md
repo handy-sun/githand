@@ -127,7 +127,7 @@ githand snapshot --archive             # 需要目录时额外生成 .tar 归档
 githand-snapshot.0515-221241.json
 ```
 
-如果包含未跟踪文件，则保持原来的带时间戳快照目录：
+如果包含未跟踪文件或当前 HEAD 有未推送提交，则保持带时间戳的快照目录：
 
 ```
 githand-snapshot.0515-221241/
@@ -135,6 +135,7 @@ githand-snapshot.0515-221241/
   untracked/
     expnix/
     githand/
+  bundles/                                    # 未推送提交的增量 Git bundle
 ```
 
 使用 `--archive` 时，该目录会额外打包为 `githand-snapshot.0515-221241.tar`。
@@ -144,6 +145,7 @@ githand-snapshot.0515-221241/
 - 远程 URL
 - 所有本地分支，含上游追踪
 - 当前分支和 HEAD 提交
+- 当前 HEAD 可达的未推送提交（增量 Git bundle）
 - `core.hooksPath` 配置（生效值）
 - 已暂存 diff（`git diff --cached`）
 - 未暂存 diff（`git diff`）
@@ -162,12 +164,13 @@ githand restore <snapshot.json> <target_dir> --dry-run
 
 1. 从主远程 `git clone`
 2. 添加额外的远程
-3. `git checkout` 到原始分支
-4. 恢复 `core.hooksPath` 配置（写入本地配置）
-5. 应用暂存补丁（`git apply --cached`）
-6. 应用未暂存补丁（`git apply`）
-7. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
-8. 从快照目录复制未跟踪文件
+3. 当前 HEAD 有未推送提交时导入增量 Git bundle
+4. `git checkout` 到原始分支
+5. 恢复 `core.hooksPath` 配置（写入本地配置）
+6. 应用暂存补丁（`git apply --cached`）
+7. 应用未暂存补丁（`git apply`）
+8. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
+9. 从快照目录复制未跟踪文件
 
 `--base-path` 将快照的原始根目录映射到新路径，保留相对目录结构。不指定时，`target_dir` 作为基础路径。
 

@@ -39,6 +39,124 @@ func TestRestoreCleanRepo(t *testing.T) {
 	}
 }
 
+func TestRestoreUnpushedHeadCommits(t *testing.T) {
+	srcDir := initWorkRepo(t, "ahead-repo")
+	for _, name := range []string{"local-1.txt", "local-2.txt", "local-3.txt"} {
+		if err := os.WriteFile(filepath.Join(srcDir, name), []byte(name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		gitCmd(t, srcDir, "add", name)
+		gitCmd(t, srcDir, "commit", "-m", "add "+name)
+	}
+	wantHead := getHEAD(t, srcDir)
+
+	parent := filepath.Dir(srcDir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "ahead-repo", Path: srcDir}},
+	}
+	snap, err := snapshot.Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	if err := Run(snapDir, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	repoDir := filepath.Join(targetDir, "ahead-repo")
+	if gotHead := getHEAD(t, repoDir); gotHead != wantHead {
+		t.Fatalf("restored HEAD = %s, want unpushed HEAD %s", gotHead, wantHead)
+	}
+	if ahead := gitOut(t, repoDir, "rev-list", "--count", "origin/main..HEAD"); ahead != "3" {
+		t.Fatalf("restored branch is %s commit(s) ahead, want 3", ahead)
+	}
+}
+
+func TestRestoreUnpushedHeadIntoExistingRepo(t *testing.T) {
+	srcDir := initWorkRepo(t, "ahead-existing")
+	if err := os.WriteFile(filepath.Join(srcDir, "local.txt"), []byte("local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, srcDir, "add", "local.txt")
+	gitCmd(t, srcDir, "commit", "-m", "add local commit")
+	wantHead := getHEAD(t, srcDir)
+
+	parent := filepath.Dir(srcDir)
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "ahead-existing", Path: srcDir}},
+	}
+	snap, err := snapshot.Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	repoDir := filepath.Join(targetDir, "ahead-existing")
+	origin := gitOut(t, srcDir, "remote", "get-url", "origin")
+	gitCmd(t, targetDir, "clone", origin, repoDir)
+	if err := Run(snapDir, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if gotHead := getHEAD(t, repoDir); gotHead != wantHead {
+		t.Fatalf("existing repo HEAD = %s, want unpushed HEAD %s", gotHead, wantHead)
+	}
+}
+
+func TestRestoreHeadAvailableOnlyFromSecondaryRemote(t *testing.T) {
+	srcDir := initWorkRepo(t, "secondary-remote")
+	if err := os.WriteFile(filepath.Join(srcDir, "upstream.txt"), []byte("upstream\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, srcDir, "add", "upstream.txt")
+	gitCmd(t, srcDir, "commit", "-m", "add upstream commit")
+	wantHead := getHEAD(t, srcDir)
+
+	parent := filepath.Dir(srcDir)
+	upstream := filepath.Join(parent, "upstream.git")
+	gitCmd(t, parent, "clone", "--bare", srcDir, upstream)
+	gitCmd(t, srcDir, "remote", "add", "upstream", upstream)
+	gitCmd(t, srcDir, "fetch", "upstream")
+
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: parent,
+		Repos:    []config.Repo{{Name: "secondary-remote", Path: srcDir}},
+	}
+	snap, err := snapshot.Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Repos[0].Bundle {
+		t.Fatal("HEAD available from upstream should not require a bundle")
+	}
+	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
+	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	if err := Run(snapDir, targetDir, "", false); err != nil {
+		t.Fatal(err)
+	}
+	repoDir := filepath.Join(targetDir, "secondary-remote")
+	if gotHead := getHEAD(t, repoDir); gotHead != wantHead {
+		t.Fatalf("restored HEAD = %s, want secondary remote HEAD %s", gotHead, wantHead)
+	}
+}
+
 // TestRestoreFromDirectory verifies that a snapshot directory works as input.
 func TestRestoreFromDirectory(t *testing.T) {
 	bareDir := initBareRepo(t, "dir-repo")
@@ -539,6 +657,22 @@ func TestRestoreExistingRepoReturnsErrorWhenSnapshotCommitMissing(t *testing.T) 
 	}, repoDir, t.TempDir())
 	if err == nil {
 		t.Fatal("expected missing snapshot commit to fail")
+	}
+}
+
+func TestRestoreRepoReturnsErrorWhenBundlePayloadMissing(t *testing.T) {
+	bareDir := initBareRepo(t, "missing-bundle")
+	commit := getHEAD(t, bareDir)
+	err := restoreRepo(snapshot.RepoSnap{
+		Name:          "missing-bundle",
+		RelPath:       "missing-bundle",
+		CurrentBranch: "main",
+		HeadCommit:    commit,
+		Bundle:        true,
+		Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareDir}},
+	}, filepath.Join(t.TempDir(), "missing-bundle"), t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "import bundle") {
+		t.Fatalf("expected missing bundle import error, got %v", err)
 	}
 }
 

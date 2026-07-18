@@ -100,9 +100,16 @@ func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 		return fmt.Errorf("clone: %w", err)
 	}
 
-	// add additional remotes
-	for _, r := range rs.Remotes[1:] {
-		_ = git.AddRemote(targetDir, r.Name, r.URL)
+	if err := ensureSnapshotRemotes(rs, targetDir); err != nil {
+		return err
+	}
+	if len(rs.Remotes) > 1 || rs.Bundle {
+		if err := git.FetchAll(targetDir); err != nil {
+			return fmt.Errorf("fetch remotes: %w", err)
+		}
+	}
+	if err := importSnapshotBundle(rs, targetDir, snapDir); err != nil {
+		return err
 	}
 
 	// checkout branch or detached commit
@@ -128,12 +135,26 @@ func updateRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {
 			return fmt.Errorf("fetch: %w", err)
 		}
 	}
+	if err := importSnapshotBundle(rs, targetDir, snapDir); err != nil {
+		return err
+	}
 
 	if err := checkoutSnapshotRef(rs, targetDir); err != nil {
 		return err
 	}
 
 	restoreWorkingState(rs, targetDir, snapDir)
+	return nil
+}
+
+func importSnapshotBundle(rs snapshot.RepoSnap, targetDir, snapDir string) error {
+	if !rs.Bundle {
+		return nil
+	}
+	bundlePath := snapshot.BundlePath(snapDir, rs.Name)
+	if err := git.ImportBundle(targetDir, bundlePath); err != nil {
+		return fmt.Errorf("import bundle %s: %w", rs.Name, err)
+	}
 	return nil
 }
 

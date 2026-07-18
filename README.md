@@ -127,7 +127,7 @@ If the snapshot only needs JSON metadata and patches, it writes a single timesta
 githand-snapshot.0515-221241.json
 ```
 
-If untracked files are included, it keeps the timestamped snapshot directory:
+If untracked files or unpushed HEAD commits are included, it keeps the timestamped snapshot directory:
 
 ```
 githand-snapshot.0515-221241/
@@ -135,6 +135,7 @@ githand-snapshot.0515-221241/
   untracked/
     expnix/
     githand/
+  bundles/                                    # incremental Git bundles for unpushed commits
 ```
 
 With `--archive`, that directory is also packed as `githand-snapshot.0515-221241.tar`.
@@ -144,6 +145,7 @@ With `--archive`, that directory is also packed as `githand-snapshot.0515-221241
 - Remote URLs
 - All local branches with upstream tracking
 - Current branch and HEAD commit
+- Unpushed commits reachable from the current HEAD (incremental Git bundle)
 - `core.hooksPath` config (effective value)
 - Staged diff (`git diff --cached`)
 - Unstaged diff (`git diff`)
@@ -162,12 +164,13 @@ Restore replays each repo's snapshot in order:
 
 1. `git clone` from primary remote
 2. Add additional remotes
-3. `git checkout` the original branch
-4. Restore `core.hooksPath` config (written to local config)
-5. Apply staged patch (`git apply --cached`)
-6. Apply unstaged patch (`git apply`)
-7. Apply stash patches (`git apply --index` + `git stash` for each)
-8. Copy untracked files from the snapshot directory
+3. Import an incremental Git bundle when HEAD contains unpushed commits
+4. `git checkout` the original branch
+5. Restore `core.hooksPath` config (written to local config)
+6. Apply staged patch (`git apply --cached`)
+7. Apply unstaged patch (`git apply`)
+8. Apply stash patches (`git apply --index` + `git stash` for each)
+9. Copy untracked files from the snapshot directory
 
 The `--base-path` flag remaps the snapshot's original root to a new path, preserving the relative directory structure. Without it, `target_dir` is used as the base.
 

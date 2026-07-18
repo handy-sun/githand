@@ -45,7 +45,7 @@ githand group rm <group>
 githand group ls
 ```
 
-The `restore` command accepts either the snapshot directory (containing `snapshot.json`) or the JSON file directly. Snapshot output may be a single `.json` file when no untracked files are present, or a directory layout when untracked payloads must travel alongside the manifest.
+The `restore` command accepts either the snapshot directory (containing `snapshot.json`) or the JSON file directly. Snapshot output may be a single `.json` file when no payload files are needed, or a directory layout when untracked files or incremental Git bundles must travel alongside the manifest.
 
 ## Implementation Layout
 
@@ -57,7 +57,7 @@ internal/discover/     # repo discovery
 internal/status/       # status collection and filtering
 internal/sync/         # parallel pull worker pool
 internal/flakeupdate/  # Nix flake update for repos with flake.nix
-internal/snapshot/     # snapshot model, JSON serialization, untracked archives
+internal/snapshot/     # snapshot model, JSON serialization, payload archives
 internal/restore/      # clone, checkout, patch apply, stash restore, extraction
 internal/display/      # terminal formatting (colors, table layout) and JSON output
 internal/i18n/         # English and Chinese translations, locale selection
@@ -153,14 +153,16 @@ Design notes:
 Snapshot metadata lives as JSON. Two layouts depending on payload:
 
 ```text
-# JSON-only (no untracked files)
+# JSON-only (no payload files)
 githand-snapshot.MMDD-HHmmss.json
 
-# Directory layout (when untracked files are captured)
+# Directory layout (when untracked files or unpushed commits are captured)
 githand-snapshot.MMDD-HHmmss/
   snapshot.json
   untracked/
     repo-name/
+  bundles/
+    encoded-repo-name.bundle
 ```
 
 With `--archive`, the directory layout is also packed as `githand-snapshot.MMDD-HHmmss.tar` next to the folder.
@@ -176,6 +178,7 @@ The JSON manifest is authoritative and includes:
 - remotes
 - branches
 - current branch or detached HEAD commit
+- whether an incremental Git bundle is included for unpushed HEAD commits
 - `core.hooksPath` config (effective value)
 - dirty flags
 - staged patch text
@@ -183,7 +186,7 @@ The JSON manifest is authoritative and includes:
 - stash patch text
 - untracked file paths
 
-Binary untracked files are kept as files under the snapshot directory, not inlined as base64 in JSON.
+Binary untracked files and incremental Git bundles are kept as files under the snapshot directory, not inlined as base64 in JSON.
 
 ## Core Flows
 
@@ -231,27 +234,30 @@ Load registry and config, select repos, then for each repo:
 3. collect staged patch with `git diff --cached`
 4. collect unstaged patch with `git diff`
 5. collect stash patches from `git stash list` and `git stash show -p`
-6. collect untracked files with `git ls-files --others --exclude-standard`
-7. copy untracked files into the sibling `untracked/<repo>/` directory
-8. compute repo path relative to `base_path`
-9. write the workspace snapshot JSON manifest
+6. detect whether HEAD is reachable from any remote-tracking ref
+7. collect untracked files with `git ls-files --others --exclude-standard`
+8. write an incremental Git bundle when HEAD contains unpushed commits
+9. copy untracked files into the sibling `untracked/<repo>/` directory
+10. compute repo path relative to `base_path`
+11. write the workspace snapshot JSON manifest
 
-When no untracked files are captured, the snapshot is a single `.json` file. Otherwise the directory layout is used so untracked payloads travel next to `snapshot.json`. `--archive` additionally writes a `.tar` of the directory.
+When no payload files are captured, the snapshot is a single `.json` file. Otherwise the directory layout is used so untracked files and Git bundles travel next to `snapshot.json`. `--archive` additionally writes a `.tar` of the directory.
 
 ### restore
 
-Read snapshot JSON (and locate the sibling `untracked/` directory if present), then for each repo:
+Read snapshot JSON (and locate sibling payload directories if present), then for each repo:
 
 1. compute target repo path from restore base plus snapshot relative path
 2. clone from the primary remote, or update an existing repo (refuse if local working tree is dirty)
 3. add or reconcile additional remotes
-4. checkout the original branch, or checkout the recorded commit for detached HEAD
-5. set up upstream tracking for the current branch
-6. restore `core.hooksPath` config (written to local repo config)
-7. apply staged patch with `git apply --cached`
-8. apply unstaged patch with `git apply`
-9. recreate stash entries from stash patches (`git apply --index` with `--3way` fallback, then `git stash`)
-10. copy untracked files from the snapshot directory
+4. import the incremental Git bundle when the recorded HEAD was not pushed
+5. checkout the original branch, or checkout the recorded commit for detached HEAD
+6. set up upstream tracking for the current branch
+7. restore `core.hooksPath` config (written to local repo config)
+8. apply staged patch with `git apply --cached`
+9. apply unstaged patch with `git apply`
+10. recreate stash entries from stash patches (`git apply --index` with `--3way` fallback, then `git stash`)
+11. copy untracked files from the snapshot directory
 
 After restore, status should match the original dirty state as closely as Git permits.
 
@@ -281,6 +287,6 @@ When adding behavior, add a test alongside it.
 - Local config and repo registry use TOML because humans may read and edit them.
 - Snapshot manifests use JSON because they are machine-generated and contain large structured data plus multi-line patches.
 - System `git` remains the source of truth for repository behavior.
-- Patch text plus copied untracked files remain the migration strategy for dirty state.
+- Incremental Git bundles preserve unpushed commits reachable from the captured HEAD; patch text plus copied untracked files preserve dirty state.
 - Snapshot schema is versioned via the `schema` field so future changes can fail clearly or migrate deliberately. New optional fields (e.g. `hooks_path`) are added with `omitempty` and remain backward-compatible.
 - `restore` writes captured config values like `core.hooksPath` to local repo config so they travel with the restore without mutating global/system config.

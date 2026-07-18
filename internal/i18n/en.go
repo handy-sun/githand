@@ -37,7 +37,7 @@ var en = map[string]string{
 	"snapshot.flag.output":  "parent directory for timestamped snapshot outputs",
 	"snapshot.flag.group":   "snapshot only repos in this group",
 	"snapshot.flag.filter":  "snapshot only matching repos (dirty, ahead, stash, detached)",
-	"snapshot.flag.archive": "archive snapshot folders as .tar when untracked files are included",
+	"snapshot.flag.archive": "archive snapshot folders as .tar when payload files are included",
 	"snapshot.written":      "Snapshot written to %s (%d repos)",
 
 	// restore

@@ -2,7 +2,9 @@ package git
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -84,6 +86,88 @@ func TestHEADCommit(t *testing.T) {
 	}
 	if len(commit) != 40 {
 		t.Errorf("commit hash should be 40 chars, got %d", len(commit))
+	}
+}
+
+func TestCreateIncrementalBundleRejectsHeadMoveDuringCreate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires a POSIX git wrapper")
+	}
+	dir := setupRepo(t)
+	parent := filepath.Dir(dir)
+	bareDir := dir + "-origin.git"
+	t.Cleanup(func() { os.RemoveAll(bareDir) })
+	must(t, parent, "clone", "--bare", dir, bareDir)
+	must(t, dir, "remote", "add", "origin", bareDir)
+	must(t, dir, "push", "-u", "origin", "HEAD")
+
+	for _, name := range []string{"local-1.txt", "local-2.txt"} {
+		write(t, filepath.Join(dir, name), name)
+		must(t, dir, "add", name)
+		must(t, dir, "commit", "-m", "add "+name)
+	}
+	captured, err := HEADCommit(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapperDir := t.TempDir()
+	wrapper := filepath.Join(wrapperDir, "git")
+	script := `#!/bin/sh
+if [ "$1" = "bundle" ] && [ "$2" = "create" ]; then
+  "$REAL_GIT" reset --hard HEAD^ >/dev/null
+fi
+exec "$REAL_GIT" "$@"
+`
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REAL_GIT", realGit)
+	t.Setenv("PATH", wrapperDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	bundlePath := filepath.Join(t.TempDir(), "ahead.bundle")
+	err = CreateIncrementalBundle(dir, bundlePath, captured)
+	if err == nil {
+		t.Fatal("expected HEAD movement during bundle creation to fail")
+	}
+	if _, statErr := os.Stat(bundlePath); !os.IsNotExist(statErr) {
+		t.Fatalf("invalid bundle should be removed, stat error = %v", statErr)
+	}
+}
+
+func TestCreateIncrementalBundleSupportsSHA256Repository(t *testing.T) {
+	dir := t.TempDir()
+	if err := RunSilent(dir, "init", "--object-format=sha256"); err != nil {
+		t.Skipf("Git does not support SHA-256 repositories: %v", err)
+	}
+	must(t, dir, "config", "user.email", "test@test.com")
+	must(t, dir, "config", "user.name", "Test")
+	write(t, filepath.Join(dir, "README.md"), "hello")
+	must(t, dir, "add", "README.md")
+	must(t, dir, "commit", "-m", "initial")
+
+	bareDir := t.TempDir()
+	must(t, bareDir, "init", "--bare", "--object-format=sha256")
+	must(t, dir, "remote", "add", "origin", bareDir)
+	must(t, dir, "push", "-u", "origin", "HEAD")
+	write(t, filepath.Join(dir, "local.txt"), "local")
+	must(t, dir, "add", "local.txt")
+	must(t, dir, "commit", "-m", "add local commit")
+	captured, err := HEADCommit(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bundlePath := filepath.Join(t.TempDir(), "ahead.bundle")
+	if err := CreateIncrementalBundle(dir, bundlePath, captured); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(bundlePath); err != nil {
+		t.Fatalf("expected SHA-256 bundle: %v", err)
 	}
 }
 

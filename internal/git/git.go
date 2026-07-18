@@ -7,6 +7,7 @@ package git
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"os/exec"
@@ -99,6 +100,55 @@ func ShortHash(dir string, ref ...string) string {
 // HEADCommit returns the current HEAD commit hash.
 func HEADCommit(dir string) (string, error) {
 	return Run(dir, "rev-parse", "HEAD")
+}
+
+// CommitInRemoteRefs reports whether commit is reachable from a remote-tracking ref.
+func CommitInRemoteRefs(dir, commit string) bool {
+	out, err := Run(dir, "for-each-ref", "--format=%(refname)", "--contains="+commit, "refs/remotes/")
+	return err == nil && out != ""
+}
+
+// CreateIncrementalBundle writes the objects reachable from commit but absent
+// from all remote-tracking refs. A temporary ref pins the captured commit so a
+// concurrent HEAD move cannot change the bundle contents.
+func CreateIncrementalBundle(dir, path, commit string) (err error) {
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return fmt.Errorf("generate bundle ref: %w", err)
+	}
+	ref := fmt.Sprintf("refs/githand/snapshot-%x", suffix)
+	if err := RunSilent(dir, "update-ref", ref, commit, ""); err != nil {
+		return fmt.Errorf("create bundle ref: %w", err)
+	}
+	defer func() {
+		cleanupErr := RunSilent(dir, "update-ref", "-d", ref, commit)
+		if err == nil && cleanupErr != nil {
+			_ = os.Remove(path)
+			err = fmt.Errorf("delete bundle ref: %w", cleanupErr)
+		}
+	}()
+
+	head, err := HEADCommit(dir)
+	if err != nil {
+		return err
+	}
+	if head != commit {
+		return fmt.Errorf("HEAD changed from %s to %s after snapshot collection", commit, head)
+	}
+	if err := RunSilent(dir, "bundle", "create", path, ref, "--not", "--remotes"); err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	head, err = HEADCommit(dir)
+	if err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	if head != commit {
+		_ = os.Remove(path)
+		return fmt.Errorf("HEAD changed from %s to %s during bundle creation", commit, head)
+	}
+	return nil
 }
 
 // IsDirty returns true if the working tree has unstaged or uncommitted changes.
@@ -271,6 +321,11 @@ func FetchAll(dir string) error {
 // FetchRemote fetches a single named remote.
 func FetchRemote(dir, remote string) error {
 	return RunSilent(dir, "fetch", remote)
+}
+
+// ImportBundle verifies prerequisites and imports objects from a local Git bundle.
+func ImportBundle(dir, path string) error {
+	return RunSilent(dir, "bundle", "unbundle", path)
 }
 
 // ResetHard resets the working tree and index to match HEAD.
