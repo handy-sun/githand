@@ -186,7 +186,7 @@ func setupOriginWithPusher(t *testing.T) (string, string, string) {
 	t.Helper()
 
 	origin := t.TempDir()
-	mustGit(t, origin, "init", "--bare")
+	mustGit(t, origin, "init", "--bare", "--initial-branch=main")
 
 	// Pusher: working clone used to push new commits to origin
 	pusher := filepath.Join(t.TempDir(), "pusher")

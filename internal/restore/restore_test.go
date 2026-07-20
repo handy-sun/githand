@@ -412,7 +412,7 @@ func initWorkRepo(t *testing.T, name string) string {
 
 	workDir := filepath.Join(parent, name)
 	os.MkdirAll(workDir, 0o755)
-	gitCmd(t, workDir, "init")
+	gitCmd(t, workDir, "init", "--initial-branch=main")
 	gitCmd(t, workDir, "config", "user.email", "test@test.com")
 	gitCmd(t, workDir, "config", "user.name", "Test")
 	os.WriteFile(filepath.Join(workDir, "README.md"), []byte("hello\n"), 0o644)
@@ -436,7 +436,7 @@ func initBareRepo(t *testing.T, name string) string {
 
 	workDir := filepath.Join(parent, name)
 	os.MkdirAll(workDir, 0o755)
-	gitCmd(t, workDir, "init")
+	gitCmd(t, workDir, "init", "--initial-branch=main")
 	gitCmd(t, workDir, "config", "user.email", "test@test.com")
 	gitCmd(t, workDir, "config", "user.name", "Test")
 	os.WriteFile(filepath.Join(workDir, "README.md"), []byte("hello\n"), 0o644)
