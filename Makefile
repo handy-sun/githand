@@ -106,15 +106,10 @@ install-completion-fish: build
 
 install-completion-zsh: build
 	@dir="$$HOME/.zfunc"; \
-	zshrc="$${ZDOTDIR:-$$HOME}/.zshrc"; \
-	marker='# githand completion'; \
-	mkdir -p "$$dir" "$$(dirname "$$zshrc")"; \
+	mkdir -p "$$dir"; \
 	$(BINDIR)/$(BINARY) completion zsh > "$$dir/_$(BINARY)"; \
 	echo "Installed zsh completion to $$dir/_$(BINARY)"; \
-	if ! grep -Fqx "$$marker" "$$zshrc" 2>/dev/null; then \
-		printf '\n%s\n%s\n%s\n' "$$marker" 'fpath=("$$HOME/.zfunc" $$fpath)' 'autoload -Uz compinit && compinit' >> "$$zshrc"; \
-		echo "Configured zsh completion in $$zshrc"; \
-	fi
+	echo 'Add fpath=("$$HOME/.zfunc" $$fpath) before compinit in your managed zsh configuration.'
 
 ## ── Cross-compilation ───────────────────────────────────
 
