@@ -22,6 +22,8 @@
 
           env.CGO_ENABLED = 0;
 
+          nativeBuildInputs = [ pkgs.installShellFiles ];
+
           doCheck = false;
 
           ldflags = [
@@ -30,6 +32,15 @@
             "-X main.version=${version}"
             "-X main.commit=${version}"
           ];
+
+          postInstall = pkgs.lib.optionalString (
+            pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform
+          ) ''
+            installShellCompletion --cmd githand \
+              --bash <($out/bin/githand completion bash) \
+              --fish <($out/bin/githand completion fish) \
+              --zsh <($out/bin/githand completion zsh)
+          '';
 
           meta = with pkgs.lib; {
             description = "Git workspace sync & migration CLI";
