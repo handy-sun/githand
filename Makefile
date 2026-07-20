@@ -89,20 +89,31 @@ install-hooks:
 	git config core.hooksPath .githooks
 	@echo "Git hooks configured: core.hooksPath=.githooks"
 
-.PHONY: install-completion
-install-completion: build
-	@shell=$$(basename "$$SHELL"); \
-	case "$$shell" in \
-		bash)  dir=~/.local/share/bash-completion/completions; file=githand ;; \
-		zsh)   dir=~/.zfunc; file=_githand ;; \
-		fish)  dir=~/.config/fish/completions; file=githand.fish ;; \
-		*)     echo "unsupported shell: $$shell"; exit 1 ;; \
-	esac; \
-	mkdir -p "$$dir" && $(BINDIR)/$(BINARY) completion "$$shell" > "$$dir/$$file" && \
-	echo "installed $$shell completion to $$dir/$$file"; \
-	if [ "$$shell" = zsh ]; then \
-		grep -q 'fpath.*\.zfunc' ~/.zshrc 2>/dev/null || \
-		{ echo 'fpath+=~/.zfunc' >> ~/.zshrc && echo 'added fpath+=~/.zfunc to ~/.zshrc'; }; \
+.PHONY: install-completion install-completion-bash install-completion-fish install-completion-zsh
+install-completion: install-completion-bash install-completion-fish install-completion-zsh
+
+install-completion-bash: build
+	@dir="$${BASH_COMPLETION_USER_DIR:-$${XDG_DATA_HOME:-$$HOME/.local/share}/bash-completion/completions}"; \
+	mkdir -p "$$dir"; \
+	$(BINDIR)/$(BINARY) completion bash > "$$dir/$(BINARY)"; \
+	echo "Installed bash completion to $$dir/$(BINARY)"
+
+install-completion-fish: build
+	@dir="$${XDG_CONFIG_HOME:-$$HOME/.config}/fish/completions"; \
+	mkdir -p "$$dir"; \
+	$(BINDIR)/$(BINARY) completion fish > "$$dir/$(BINARY).fish"; \
+	echo "Installed fish completion to $$dir/$(BINARY).fish"
+
+install-completion-zsh: build
+	@dir="$$HOME/.zfunc"; \
+	zshrc="$${ZDOTDIR:-$$HOME}/.zshrc"; \
+	marker='# githand completion'; \
+	mkdir -p "$$dir" "$$(dirname "$$zshrc")"; \
+	$(BINDIR)/$(BINARY) completion zsh > "$$dir/_$(BINARY)"; \
+	echo "Installed zsh completion to $$dir/_$(BINARY)"; \
+	if ! grep -Fqx "$$marker" "$$zshrc" 2>/dev/null; then \
+		printf '\n%s\n%s\n%s\n' "$$marker" 'fpath=("$$HOME/.zfunc" $$fpath)' 'autoload -Uz compinit && compinit' >> "$$zshrc"; \
+		echo "Configured zsh completion in $$zshrc"; \
 	fi
 
 ## ── Cross-compilation ───────────────────────────────────
@@ -142,7 +153,8 @@ help:
 	@echo "  make fmt-check — verify Go formatting"
 	@echo "  make install  — cpy binary to $$GOPATH/bin/"
 	@echo "  make install-hooks — configure git hooks for this repo"
-	@echo "  make install-completion — install shell completion for current shell"
+	@echo "  make install-completion — install bash, fish, and zsh completions"
+	@echo "  make install-completion-{bash,fish,zsh} — install one shell completion"
 	@echo "  make test     — run tests (race detector on)"
 	@echo "  make lint     — go vet + staticcheck"
 	@echo "  make cross    — cross-compile all platforms"
