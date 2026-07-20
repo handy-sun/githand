@@ -42,7 +42,8 @@ build:
 
 .PHONY: install
 install: build
-	cp $(BINDIR)/$(BINARY) $(GOPATH)/bin/$(BINARY)
+	mkdir -p "$(GOPATH)/bin"
+	cp $(BINDIR)/$(BINARY) "$(GOPATH)/bin/$(BINARY)"
 
 ## ── Test ─────────────────────────────────────────────────
 
