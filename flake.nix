@@ -10,7 +10,11 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = builtins.substring 0 7 self.rev or "dirty";
+        version = pkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
+        commit = self.shortRev or self.dirtyShortRev or "unknown";
+        sourceDate = self.lastModifiedDate or "19700101000000";
+        buildDate =
+          "${builtins.substring 0 4 sourceDate}-${builtins.substring 4 2 sourceDate}-${builtins.substring 6 2 sourceDate}T${builtins.substring 8 2 sourceDate}:${builtins.substring 10 2 sourceDate}:${builtins.substring 12 2 sourceDate}Z";
       in
       {
         packages.default = pkgs.buildGoModule {
@@ -29,8 +33,9 @@
           ldflags = [
             "-s"
             "-w"
-            "-X main.version=${version}"
-            "-X main.commit=${version}"
+            "-X main.version=v${version}"
+            "-X main.commit=${commit}"
+            "-X main.date=${buildDate}"
           ];
 
           postInstall = pkgs.lib.optionalString (
