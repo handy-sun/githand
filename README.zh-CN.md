@@ -10,7 +10,8 @@ Git 工作区同步与迁移 CLI — scan、status、snapshot、restore。
 - **脏状态保留** — 暂存/未暂存的 diff、stash 条目、未跟踪文件（含二进制）全部捕获并恢复
 - **并行状态收集** — 并发收集所有仓库状态（可配置工作线程数）
 - **智能分组** — 按子目录名自动分组，或手动管理分组
-- **路径可移植** — 快照内部使用相对路径；`--base-path` 在恢复时重新映射根目录，`/Users/you/work` 无缝变为 `/home/me/projects`
+- **多根工作区** — 一个注册表支持多个根目录下的仓库（如 `~/work` 与 `/srv/code`），单条命令可扫描多个路径
+- **路径可移植** — 快照内部使用相对路径，`/Users/you/work/nix/expnix` 在任何机器上都恢复为 `<目标目录>/nix/expnix`；其他根目录下的仓库恢复到以该根目录名命名的子目录中
 - **过滤与查询** — 按脏状态、领先远程、有 stash、分组、所有者等条件筛选仓库
 - **JSON 输出** — 机器可读的状态输出，方便脚本集成
 - **TOML 配置** — 配置、注册表和分组默认存放在 `~/.config/githand/`（`githand.toml` + `repos.toml`），也可通过 `GITHAND_HOME` 指定目录
@@ -33,8 +34,9 @@ go install github.com/handy-sun/githand/cmd/githand@latest
 ## 快速开始
 
 ```bash
-# 1. 发现工作区下所有 git 仓库
+# 1. 发现工作区下所有 git 仓库（支持一个或多个根目录）
 githand scan ~/work --recursive --auto-group
+githand scan ~/work /srv/code --recursive
 
 # 2. 查看所有仓库状态
 githand status
@@ -43,7 +45,7 @@ githand status
 githand snapshot -o ~/snapshots
 
 # 4. 在新机器上恢复
-githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/work
+githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work
 ```
 
 ## 命令
@@ -51,12 +53,12 @@ githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/wo
 ### scan — 发现并注册仓库
 
 ```bash
-githand scan <path>                    # 扫描目录下的 git 仓库
+githand scan <path>...                 # 扫描一个或多个目录下的 git 仓库
 githand scan <path> -r                 # 递归扫描子目录
 githand scan <path> --auto-group       # 按子目录名自动创建分组
 ```
 
-首次扫描时记录目录为 `base_path`，后续扫描会保留。已在注册表中的仓库会被跳过。
+每个包含仓库的扫描目录都会作为工作区根目录登记到 `base_paths`；首次登记的根目录成为主根 `base_path`，后续扫描不会改变它。已在注册表中的仓库会被跳过。用 `status --sync` 可自动发现任意已登记根目录下新增的仓库。
 
 ### status — 显示仓库状态
 
@@ -76,7 +78,7 @@ githand status --json                  # 机器可读的 JSON 输出
 
 使用 `--sync` 标志或在配置文件中设置 `status.auto_sync = true`，`status` 命令会自动：
 - 从注册表中移除已删除的仓库
-- 发现并添加 `base_path` 下新增的仓库
+- 发现并添加任意已登记根目录下新增的仓库
 
 这样你就不需要在每次添加或删除仓库后手动运行 `scan` 命令。
 
@@ -156,7 +158,6 @@ githand-snapshot.0515-221241/
 
 ```bash
 githand restore <snapshot.json> <target_dir>
-githand restore <snapshot.json> <target_dir> --base-path /new/root
 githand restore <snapshot.json> <target_dir> --dry-run
 ```
 
@@ -172,7 +173,7 @@ githand restore <snapshot.json> <target_dir> --dry-run
 8. 应用 stash 补丁（每个 `git apply --index` + `git stash`）
 9. 从快照目录复制未跟踪文件
 
-`--base-path` 将快照的原始根目录映射到新路径，保留相对目录结构。不指定时，`target_dir` 作为基础路径。
+所有目标路径都会在任何操作开始前计算好：主根目录下的仓库直接恢复到 `target_dir` 下；其他根目录下的仓库恢复到 `target_dir/<根目录名>/` 下，保证多个工作区互不干扰。若有两个仓库会落到同一路径，恢复会直接失败，不会改动磁盘。
 
 ### ls、rm — 管理注册表
 
@@ -193,21 +194,32 @@ githand group ls                       # 列出所有分组
 
 ### 路径可移植性
 
-快照存储相对路径而非绝对路径。扫描 `~/work` 时，基础路径 `/Users/you/work` 被记录。快照时，每个仓库的路径相对于此基础计算（如 `nix/expnix`、`agent-switch/cc-switch`）。
+快照存储相对路径而非绝对路径。扫描 `~/work` 时，该目录被记录为工作区根目录。快照时，每个仓库的路径相对于其所属根目录计算（如 `nix/expnix`、`agent-switch/cc-switch`）。
 
-恢复时，`--base-path` 设置新的根目录，相对结构被保留：
+恢复时，`target_dir` 就是新的根目录，相对结构被保留：
 
 ```
 机器 A:  /Users/you/work/nix/expnix
                          ^^^^^^^^^^^^^  相对路径
-机器 B:  /home/me/projects/nix/expnix  (--base-path /home/me/projects)
+机器 B:  /home/me/projects/nix/expnix  （恢复目标目录：/home/me/projects）
 ```
 
 这意味着一份快照可在 macOS、Linux 或任何路径布局间通用。
 
+### 多个工作区根目录
+
+仓库可以分布在多个根目录下——比如 `~/work` 和 `/srv/code`——通过一次扫描全部登记（`githand scan ~/work /srv/code`）。每个根目录都记录在注册表的 `base_paths` 中，第一个仍是主根。
+
+快照时，每个仓库锚定在包含它的最长的已登记根目录上。恢复时，主根下的仓库直接落在 `target_dir` 下，其他根目录下的仓库落在以该根目录名命名的子目录中：
+
+```
+~/work/tools/githand       →  <目标>/tools/githand          （主根）
+/srv/code/nix/expnix       →  <目标>/code/nix/expnix        （根目录 /srv/code）
+```
+
 ### 为什么注册表不存相对路径？
 
-如果 `base_path` 变化（比如从不同目录重新扫描），存储的相对路径就会失效。在快照时从存储的 `base_path` + 绝对 `path` 动态计算更简单，且始终正确。
+如果根目录移动（比如从不同目录重新扫描），存储的相对路径就会失效。在快照时从已登记的根目录 + 绝对 `path` 动态计算更简单，且始终正确。
 
 ## 与 gita 的对比
 
@@ -227,7 +239,7 @@ githand group ls                       # 列出所有分组
 | **并行状态收集** | Goroutine 池 | 异步执行 |
 | **按状态筛选** | dirty / ahead / stash / detached | 颜色编码展示 |
 | **按子目录分组** | 扫描时 `--auto-group` | 添加时 `add -a` |
-| **路径可移植** | 相对路径 + `--base-path` | `clone -p` 保留路径 |
+| **路径可移植** | 相对路径 + 多根工作区支持 | `clone -p` 保留路径 |
 | **JSON 输出** | `--json` 标志 | 无 |
 | **实现语言** | Go（单二进制） | Python（pip 包） |
 

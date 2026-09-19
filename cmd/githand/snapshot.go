@@ -48,7 +48,7 @@ var snapshotCmd = &cobra.Command{
 		}
 
 		// write snapshot output
-		writtenPath, err := snapshot.WriteOutput(snap, snapDir, reg.BasePath, snapshotArchive)
+		writtenPath, err := snapshot.WriteOutput(snap, snapDir, snapshotArchive)
 		if err != nil {
 			return fmt.Errorf("write snapshot: %w", err)
 		}

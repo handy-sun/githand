@@ -34,9 +34,8 @@ var zh = map[string]string{
 	"snapshot.written":      "快照已写入 %s（%d 个仓库）",
 
 	// restore
-	"restore.short":          "从快照恢复仓库",
-	"restore.flag.base-path": "为恢复的仓库重新映射基础路径",
-	"restore.flag.dry-run":   "仅显示将要执行的操作，不实际修改",
+	"restore.short":        "从快照恢复仓库",
+	"restore.flag.dry-run": "仅显示将要执行的操作，不实际修改",
 
 	// ls
 	"ls.short": "列出已注册的仓库名",
@@ -79,10 +78,11 @@ var zh = map[string]string{
 	"display.dirty":    "脏",
 
 	// restore (internal)
-	"restore.progress": "正在将 %d 个仓库从 %s 恢复到 %s",
-	"restore.dry_run":  "[试运行] 将恢复 %s -> %s",
-	"restore.restored": "已恢复 %s",
-	"restore.updated":  "已更新 %s（仓库已存在）",
+	"restore.progress":      "正在将 %d 个仓库从 %s 恢复到 %s",
+	"restore.dry_run":       "[试运行] 将恢复 %s -> %s",
+	"restore.restored":      "已恢复 %s",
+	"restore.updated":       "已更新 %s（仓库已存在）",
+	"restore.path_conflict": "目标路径冲突：仓库 %s 和 %s 都会恢复到 %s",
 
 	// sync
 	"sync.short":       "拉取所有已注册仓库的最新更改",
@@ -91,7 +91,7 @@ var zh = map[string]string{
 	"sync.summary":     "已同步 %d 个仓库，%d 个已更新，%d 个出错。",
 
 	// flake-update
-	"flake-update.short":       "更新带有 flake.nix 的仓库的 Nix flake 输入",
-	"flake-update.flag.group":  "仅更新此分组中的仓库",
-	"flake-update.summary":     "已检查 %d 个仓库，%d 个已更新，%d 个出错。",
+	"flake-update.short":      "更新带有 flake.nix 的仓库的 Nix flake 输入",
+	"flake-update.flag.group": "仅更新此分组中的仓库",
+	"flake-update.summary":    "已检查 %d 个仓库，%d 个已更新，%d 个出错。",
 }

@@ -190,8 +190,7 @@ func applyTranslations(root *cobra.Command) {
 		case "restore":
 			sub.Short = i18n.T("restore.short")
 			translateFlags(sub, map[string]string{
-				"base-path": "restore.flag.base-path",
-				"dry-run":   "restore.flag.dry-run",
+				"dry-run": "restore.flag.dry-run",
 			})
 		case "ls":
 			sub.Short = i18n.T("ls.short")

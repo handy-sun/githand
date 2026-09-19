@@ -1,13 +1,13 @@
 # githand
 
-Git workspace sync and migration CLI. The tool scans a directory for git repos, displays multi-repo status, pulls latest changes, snapshots full repo state, and restores that state on another machine, including uncommitted work.
+Git workspace sync and migration CLI. The tool scans directories for git repos, displays multi-repo status, pulls latest changes, snapshots full repo state, and restores that state on another machine, including uncommitted work.
 
 Implemented in Go as a single binary that shells out to the system `git` for all repository operations.
 
 ## Command Surface
 
 ```text
-githand scan <path>                    # scan directory, register repos
+githand scan <path>...                 # scan one or more roots, register repos
 githand scan <path> --recursive        # scan recursively
 githand scan <path> --auto-group       # auto-create groups by subdirectory
 
@@ -35,7 +35,6 @@ githand snapshot --filter dirty        # snapshot only matching repos
 githand snapshot --archive             # also pack the snapshot directory as .tar
 
 githand restore <snapshot.json|dir> <target_dir>
-githand restore <snapshot.json|dir> <target_dir> --base-path <new_root>
 githand restore <snapshot.json|dir> <target_dir> --dry-run
 
 githand ls                             # list repo names
@@ -124,6 +123,7 @@ Format:
 ```toml
 version = 1
 base_path = "/Users/qi/work"
+base_paths = ["/Users/qi/work", "/srv/code"]
 
 [[repos]]
 name = "githand"
@@ -132,7 +132,7 @@ group = "tools"
 
 [[repos]]
 name = "expnix"
-path = "/Users/qi/work/nix/expnix"
+path = "/srv/code/nix/expnix"
 group = "nix"
 
 [groups]
@@ -142,7 +142,8 @@ nix = ["expnix"]
 
 Design notes:
 
-- `base_path` is the workspace root used to compute portable relative paths at snapshot time.
+- `base_paths` lists every registered workspace root; each scan adds the directories it was pointed at (exact-deduplicated after symlink resolution). Registries with a single root write only `base_path`, keeping the legacy layout byte-identical.
+- `base_path` is the primary workspace root and always equals `base_paths[0]` after loading. It is set by the first scan and never moved by later scans.
 - `repos[*].path` remains absolute in the registry to avoid ambiguity during local operations.
 - `repos[*].group` is a convenience tag from scan-time auto-grouping.
 - `[groups]` stores named manual groups. A repo can match a group by either explicit group membership or its `group` field.
@@ -172,8 +173,8 @@ The JSON manifest is authoritative and includes:
 - schema version
 - creation timestamp
 - source hostname
-- source base path
-- repos
+- source base paths (`base_path` plus `base_paths` when more than one root is registered)
+- repos, each anchored at a workspace root: `rel_path` is relative to the repo's anchor root, and repos anchored away from the primary root record that root in a per-repo `base_path` field
 - groups
 - remotes
 - branches
@@ -186,17 +187,19 @@ The JSON manifest is authoritative and includes:
 - stash patch text
 - untracked file paths
 
+A repo that lives under no registered root (only possible in hand-edited registries) records its absolute path instead of a relative one.
+
 Binary untracked files and incremental Git bundles are kept as files under the snapshot directory, not inlined as base64 in JSON.
 
 ## Core Flows
 
 ### scan
 
-Resolve path, walk directories, identify git repos, deduplicate by absolute path, assign optional auto-group, write `repos.toml`. On first scan the directory is recorded as `base_path`; subsequent scans preserve it.
+Accepts one or more root directories, validates all of them up front, then for each root: walk directories, identify git repos, deduplicate by absolute path, assign optional auto-group. Repos merge into the existing registry without overwriting it. Every root that yielded repos is registered under `base_paths` (exact-deduplicated after symlink resolution); the first root ever registered becomes the primary `base_path` and is never moved by later scans. A root with no repos is reported but not registered.
 
 ### status
 
-Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data. With `--sync` (or `status.auto_sync = true` in config), the registry is reconciled against disk before status collection: removed repos are pruned, new repos under `base_path` are added.
+Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data. With `--sync` (or `status.auto_sync = true` in config), the registry is reconciled against disk before status collection: removed repos are pruned, new repos under every registered base path are added.
 
 Use a bounded worker count from config or CLI. Default to 8 workers.
 
@@ -238,30 +241,27 @@ Load registry and config, select repos, then for each repo:
 7. collect untracked files with `git ls-files --others --exclude-standard`
 8. write an incremental Git bundle when HEAD contains unpushed commits
 9. copy untracked files into the sibling `untracked/<repo>/` directory
-10. compute repo path relative to `base_path`
+10. anchor the repo at the longest registered base path that contains it (symlink-resolved comparison) and compute its relative path against that root; record the anchor in a per-repo `base_path` field when it differs from the primary root, or the absolute path when no root contains the repo
 11. write the workspace snapshot JSON manifest
 
 When no payload files are captured, the snapshot is a single `.json` file. Otherwise the directory layout is used so untracked files and Git bundles travel next to `snapshot.json`. `--archive` additionally writes a `.tar` of the directory.
 
 ### restore
 
-Read snapshot JSON (and locate sibling payload directories if present), then for each repo:
+Read snapshot JSON (and locate sibling payload directories if present). Compute every target path up front: repos anchored at the primary base path land directly under `target_dir`, repos anchored at another registered root nest under `target_dir/<base name of that root>/`, and a repo recording an absolute path (no matching root) restores under `target_dir` with the absolute path's components appended. If two repos resolve to the same target path, the whole restore fails before touching the disk. Then for each repo:
 
-1. compute target repo path from restore base plus snapshot relative path
-2. clone from the primary remote, or update an existing repo (refuse if local working tree is dirty)
-3. add or reconcile additional remotes
-4. import the incremental Git bundle when the recorded HEAD was not pushed
-5. checkout the original branch, or checkout the recorded commit for detached HEAD
-6. set up upstream tracking for the current branch
-7. restore `core.hooksPath` config (written to local repo config)
-8. apply staged patch with `git apply --cached`
-9. apply unstaged patch with `git apply`
-10. recreate stash entries from stash patches (`git apply --index` with `--3way` fallback, then `git stash`)
-11. copy untracked files from the snapshot directory
+1. clone from the primary remote, or update an existing repo (refuse if local working tree is dirty)
+2. add or reconcile additional remotes
+3. import the incremental Git bundle when the recorded HEAD was not pushed
+4. checkout the original branch, or checkout the recorded commit for detached HEAD
+5. set up upstream tracking for the current branch
+6. restore `core.hooksPath` config (written to local repo config)
+7. apply staged patch with `git apply --cached`
+8. apply unstaged patch with `git apply`
+9. recreate stash entries from stash patches (`git apply --index` with `--3way` fallback, then `git stash`)
+10. copy untracked files from the snapshot directory
 
 After restore, status should match the original dirty state as closely as Git permits.
-
-Note: the `--base-path` flag is currently accepted but not applied — restore simply joins `target_dir` with each repo's recorded relative path, and no test covers path remapping. It is slated for rework as part of multi-root workspace support.
 
 ## Testing Priorities
 
@@ -269,15 +269,16 @@ Tests use temporary directories and real `git` commands. The important behavior 
 
 Coverage already includes:
 
-- registry TOML parse/write round trips
+- registry TOML parse/write round trips, including `base_paths` migration from the legacy single-root layout
 - config defaulting and CLI override behavior
-- scan on nested temp directories
+- scan on nested temp directories, multi-root scans, and base path deduplication
 - status collection on temp git repos
 - sync: clean up-to-date, pull new commit, dirty worktree (autostash), detached HEAD (fetch-only), non-git dir, group filter, `pull.rebase` honoring, default remote
 - snapshot/restore end-to-end with staged, unstaged, stash, and untracked files
 - binary untracked file preservation
 - detached HEAD restore
 - `core.hooksPath` capture and restore (fresh clone and existing-repo update)
+- multi-root anchoring: per-repo `base_path` recording, longest-prefix anchor selection, secondary-root restore layout, and target path conflict preflight
 - snapshot directory layout, single-JSON output, and `.tar` archive contents
 
 When adding behavior, add a test alongside it.
@@ -290,4 +291,5 @@ When adding behavior, add a test alongside it.
 - System `git` remains the source of truth for repository behavior.
 - Incremental Git bundles preserve unpushed commits reachable from the captured HEAD; patch text plus copied untracked files preserve dirty state.
 - Snapshot schema is versioned via the `schema` field so future changes can fail clearly or migrate deliberately. New optional fields (e.g. `hooks_path`) are added with `omitempty` and remain backward-compatible.
+- Multiple workspace roots are supported through the `base_paths` registry list. Repos keep absolute paths locally; root-relative structure is materialized only at snapshot time by anchoring each repo at the longest matching root. Secondary roots restore nested under their base name so separate workspaces cannot silently merge or collide, and the restore preflight rejects ambiguous layouts before touching the disk.
 - `restore` writes captured config values like `core.hooksPath` to local repo config so they travel with the restore without mutating global/system config.

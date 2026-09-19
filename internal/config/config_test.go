@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -153,6 +154,106 @@ func TestRegistryRoundTrip(t *testing.T) {
 	}
 	if len(loaded.Groups["nix"]) != 1 || loaded.Groups["nix"][0] != "expnix" {
 		t.Errorf("nix group: expected [expnix], got %v", loaded.Groups["nix"])
+	}
+}
+
+func TestRegistryRoundTripMultipleBasePaths(t *testing.T) {
+	dir, err := os.MkdirTemp("", "githand-registry-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	reg := Registry{
+		Version:   1,
+		BasePath:  "/Users/qi/work",
+		BasePaths: []string{"/Users/qi/work", "/srv/code"},
+		Repos: []Repo{
+			{Name: "githand", Path: "/Users/qi/work/githand"},
+			{Name: "expnix", Path: "/srv/code/nix/expnix"},
+		},
+	}
+
+	if err := SaveRegistry(dir, reg); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "repos.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "base_paths") {
+		t.Error("multi-root registry should persist base_paths")
+	}
+
+	loaded, err := LoadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.BasePath != "/Users/qi/work" {
+		t.Errorf("BasePath: expected /Users/qi/work, got %s", loaded.BasePath)
+	}
+	if len(loaded.BasePaths) != 2 || loaded.BasePaths[0] != "/Users/qi/work" || loaded.BasePaths[1] != "/srv/code" {
+		t.Errorf("BasePaths: expected [/Users/qi/work /srv/code], got %v", loaded.BasePaths)
+	}
+}
+
+func TestLoadRegistryMigratesLegacyBasePath(t *testing.T) {
+	dir, err := os.MkdirTemp("", "githand-registry-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	legacy := "version = 1\nbase_path = \"/Users/qi/work\"\n\n[[repos]]\nname = \"githand\"\npath = \"/Users/qi/work/githand\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "repos.toml"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reg, err := LoadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reg.BasePath != "/Users/qi/work" {
+		t.Errorf("BasePath: expected /Users/qi/work, got %s", reg.BasePath)
+	}
+	if len(reg.BasePaths) != 1 || reg.BasePaths[0] != "/Users/qi/work" {
+		t.Errorf("legacy base_path should migrate to BasePaths, got %v", reg.BasePaths)
+	}
+
+	if err := SaveRegistry(dir, reg); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "repos.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "base_paths") {
+		t.Error("re-saving a single-root registry must keep the legacy layout (no base_paths)")
+	}
+}
+
+func TestLoadRegistryDerivesBasePathFromBasePaths(t *testing.T) {
+	dir, err := os.MkdirTemp("", "githand-registry-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	content := "version = 1\nbase_paths = [\"/a\", \"/b\"]\n"
+	if err := os.WriteFile(filepath.Join(dir, "repos.toml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reg, err := LoadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reg.BasePath != "/a" {
+		t.Errorf("BasePath should default to the first base path, got %s", reg.BasePath)
+	}
+	if len(reg.BasePaths) != 2 {
+		t.Errorf("expected 2 base paths, got %v", reg.BasePaths)
 	}
 }
 

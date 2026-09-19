@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	restoreBasePath string
-	restoreDryRun   bool
+	restoreDryRun bool
 )
 
 var restoreCmd = &cobra.Command{
@@ -26,11 +25,10 @@ var restoreCmd = &cobra.Command{
 			dryRun = cfg.Restore.DryRun
 		}
 
-		return restore.Run(snapPath, targetDir, restoreBasePath, dryRun)
+		return restore.Run(snapPath, targetDir, dryRun)
 	},
 }
 
 func init() {
-	restoreCmd.Flags().StringVar(&restoreBasePath, "base-path", "", i18n.T("restore.flag.base-path"))
 	restoreCmd.Flags().BoolVar(&restoreDryRun, "dry-run", false, i18n.T("restore.flag.dry-run"))
 }

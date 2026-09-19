@@ -226,7 +226,7 @@ func TestSnapshotWriteJSON(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
 
-	if err := Write(snap, snapDir, parent); err != nil {
+	if err := Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -263,7 +263,7 @@ func TestWriteOutputWithoutUntrackedWritesSingleJSONFile(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	outputBase := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
-	writtenPath, err := WriteOutput(snap, outputBase, parent, false)
+	writtenPath, err := WriteOutput(snap, outputBase, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestWriteOutputWithBundleKeepsFolder(t *testing.T) {
 	}
 
 	outputBase := filepath.Join(t.TempDir(), "githand-snapshot.0101-120000")
-	writtenPath, err := WriteOutput(snap, outputBase, parent, false)
+	writtenPath, err := WriteOutput(snap, outputBase, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestWriteOutputWithUntrackedKeepsFolderAndArchivesWhenRequested(t *testing.
 
 	tmpDir := t.TempDir()
 	outputBase := filepath.Join(tmpDir, "githand-snapshot.0101-120000")
-	writtenPath, err := WriteOutput(snap, outputBase, parent, true)
+	writtenPath, err := WriteOutput(snap, outputBase, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +513,7 @@ func TestWriteUntrackedFiles(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
 
-	if err := Write(snap, snapDir, parent); err != nil {
+	if err := Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -588,5 +588,108 @@ func tarContains(t *testing.T, tarPath, name string) bool {
 		if hdr.Name == name {
 			return true
 		}
+	}
+}
+
+func initRepoAtPath(t *testing.T, dir string) {
+	t.Helper()
+	os.MkdirAll(dir, 0o755)
+	gitRun(t, dir, "init")
+	gitRun(t, dir, "config", "user.email", "test@test.com")
+	gitRun(t, dir, "config", "user.name", "Test")
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("init"), 0o644)
+	gitRun(t, dir, "add", "README.md")
+	gitRun(t, dir, "commit", "-m", "initial")
+}
+
+func TestSnapshotAnchorsReposUnderTheirBasePath(t *testing.T) {
+	rootA, _ := os.MkdirTemp("", "githand-snap-roota-")
+	defer os.RemoveAll(rootA)
+	rootB, _ := os.MkdirTemp("", "githand-snap-rootb-")
+	defer os.RemoveAll(rootB)
+
+	repoA := filepath.Join(rootA, "alpha")
+	repoB := filepath.Join(rootB, "beta")
+	initRepoAtPath(t, repoA)
+	initRepoAtPath(t, repoB)
+
+	reg := &config.Registry{
+		Version:   1,
+		BasePath:  rootA,
+		BasePaths: []string{rootA, rootB},
+		Repos: []config.Repo{
+			{Name: "alpha", Path: repoA},
+			{Name: "beta", Path: repoB},
+		},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(snap.BasePaths) != 2 {
+		t.Errorf("multi-root snapshot should record base_paths, got %v", snap.BasePaths)
+	}
+
+	byName := map[string]RepoSnap{}
+	for _, rs := range snap.Repos {
+		byName[rs.Name] = rs
+	}
+
+	if rs := byName["alpha"]; rs.RelPath != "alpha" || rs.BasePath != "" {
+		t.Errorf("primary-root repo: expected rel_path alpha with no per-repo base_path, got %q / %q", rs.RelPath, rs.BasePath)
+	}
+	if rs := byName["beta"]; rs.RelPath != "beta" || rs.BasePath != rootB {
+		t.Errorf("second-root repo: expected rel_path beta anchored at %s, got %q / %q", rootB, rs.RelPath, rs.BasePath)
+	}
+}
+
+func TestSnapshotAnchorsByLongestPrefix(t *testing.T) {
+	root, _ := os.MkdirTemp("", "githand-snap-nested-")
+	defer os.RemoveAll(root)
+
+	nestedRoot := filepath.Join(root, "sub")
+	repoPath := filepath.Join(nestedRoot, "deep")
+	initRepoAtPath(t, repoPath)
+
+	reg := &config.Registry{
+		Version:   1,
+		BasePath:  root,
+		BasePaths: []string{root, nestedRoot},
+		Repos:     []config.Repo{{Name: "deep", Path: repoPath}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rs := snap.Repos[0]
+	if rs.RelPath != "deep" {
+		t.Errorf("nested root should win the anchor, expected rel_path deep, got %q", rs.RelPath)
+	}
+	if rs.BasePath != nestedRoot {
+		t.Errorf("expected per-repo base_path %s, got %q", nestedRoot, rs.BasePath)
+	}
+}
+
+func TestSnapshotSingleRootOmitsBasePaths(t *testing.T) {
+	dir := initTestRepo(t, "repo-single")
+	reg := &config.Registry{
+		Version:  1,
+		BasePath: filepath.Dir(dir),
+		Repos:    []config.Repo{{Name: "repo-single", Path: dir}},
+	}
+
+	snap, err := Take(reg, reg.Repos, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.BasePaths != nil {
+		t.Errorf("single-root snapshot should omit base_paths, got %v", snap.BasePaths)
+	}
+	if snap.Repos[0].BasePath != "" {
+		t.Errorf("single-root repo should omit per-repo base_path, got %q", snap.Repos[0].BasePath)
 	}
 }

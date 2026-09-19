@@ -22,6 +22,7 @@ type Snapshot struct {
 	CreatedAt string              `json:"created_at"`
 	Host      string              `json:"host"`
 	BasePath  string              `json:"base_path"`
+	BasePaths []string            `json:"base_paths,omitempty"`
 	Repos     []RepoSnap          `json:"repos"`
 	Groups    map[string][]string `json:"groups,omitempty"`
 }
@@ -30,6 +31,7 @@ type Snapshot struct {
 type RepoSnap struct {
 	Name          string       `json:"name"`
 	RelPath       string       `json:"rel_path"`
+	BasePath      string       `json:"base_path,omitempty"`
 	Group         string       `json:"group,omitempty"`
 	Remotes       []RemoteSnap `json:"remotes"`
 	Branches      []BranchSnap `json:"branches"`
@@ -103,9 +105,18 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 		BasePath:  reg.BasePath,
 		Groups:    reg.Groups,
 	}
+	if len(reg.BasePaths) > 1 {
+		snap.BasePaths = reg.BasePaths
+	}
+
+	basePaths := registryBasePaths(reg)
+	primary := reg.BasePath
+	if primary == "" && len(basePaths) > 0 {
+		primary = basePaths[0]
+	}
 
 	for _, repo := range repos {
-		rs, err := snapshotRepo(reg.BasePath, repo)
+		rs, err := snapshotRepo(basePaths, primary, repo)
 		if err != nil {
 			return nil, fmt.Errorf("snapshot %s: %w", repo.Name, err)
 		}
@@ -118,12 +129,35 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 	return snap, nil
 }
 
-func snapshotRepo(basePath string, repo config.Repo) (RepoSnap, error) {
+// registryBasePaths returns every registered workspace root, tolerating
+// registries built directly rather than through config.LoadRegistry.
+func registryBasePaths(reg *config.Registry) []string {
+	if len(reg.BasePaths) > 0 {
+		return reg.BasePaths
+	}
+	if reg.BasePath != "" {
+		return []string{reg.BasePath}
+	}
+	return nil
+}
+
+func snapshotRepo(basePaths []string, primary string, repo config.Repo) (RepoSnap, error) {
 	dir := repo.Path
 	rs := RepoSnap{
-		Name:    repo.Name,
-		RelPath: relPath(basePath, dir),
-		Group:   repo.Group,
+		Name:  repo.Name,
+		Group: repo.Group,
+	}
+
+	// anchor the repo at the longest registered root that contains it
+	if anchor, matched, ok := anchorRoot(basePaths, dir); ok {
+		rs.RelPath = relPath(anchor, matched)
+		if anchor != primary {
+			rs.BasePath = anchor
+		}
+	} else {
+		// repo outside every registered root (hand-edited registry):
+		// keep the absolute path so restore stays deterministic
+		rs.RelPath = filepath.ToSlash(dir)
 	}
 
 	// head
@@ -239,9 +273,71 @@ func relPath(base, path string) string {
 	return filepath.ToSlash(rel)
 }
 
+// anchorRoot finds the registered base path that contains repoPath, preferring
+// the longest match. Stored paths are matched verbatim first, then
+// symlink-resolved (e.g. macOS /var vs /private/var). Returns the anchor and
+// the repo path paired with it; ok is false when no registered root contains
+// the repo.
+func anchorRoot(basePaths []string, repoPath string) (anchor, matched string, ok bool) {
+	if anchor, matched, ok = longestContaining(basePaths, repoPath); ok {
+		return anchor, matched, true
+	}
+	resolvedRepo, err := filepath.EvalSymlinks(repoPath)
+	if err != nil {
+		return "", "", false
+	}
+	resolved := make([]string, 0, len(basePaths))
+	for _, base := range basePaths {
+		if r, err := filepath.EvalSymlinks(base); err == nil {
+			resolved = append(resolved, r)
+		}
+	}
+	return longestContaining(resolved, resolvedRepo)
+}
+
+func longestContaining(paths []string, path string) (anchor, matched string, ok bool) {
+	bestLen := -1
+	for _, base := range paths {
+		if !containsPath(base, path) {
+			continue
+		}
+		if len(base) > bestLen {
+			anchor, matched, bestLen = base, path, len(base)
+		}
+	}
+	return anchor, matched, bestLen >= 0
+}
+
+// containsPath reports whether path is base itself or lies under it.
+func containsPath(base, path string) bool {
+	if base == "" {
+		return false
+	}
+	rel, err := filepath.Rel(base, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// repoAbsPath resolves a repo's absolute path on the source machine from the
+// manifest: a repo with its own base_path anchors there, everything else
+// anchors at the primary base path. Absolute rel paths (repos that lived
+// outside every registered root) are used verbatim.
+func (s *Snapshot) repoAbsPath(rs *RepoSnap) string {
+	if filepath.IsAbs(rs.RelPath) {
+		return filepath.FromSlash(rs.RelPath)
+	}
+	anchor := s.BasePath
+	if rs.BasePath != "" {
+		anchor = rs.BasePath
+	}
+	return filepath.Join(anchor, filepath.FromSlash(rs.RelPath))
+}
+
 // Write saves the snapshot into the given directory.
 // It creates snapshot.json and copies untracked files into untracked/<repo>/.
-func Write(snap *Snapshot, dir string, basePath string) error {
+func Write(snap *Snapshot, dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create snapshot dir: %w", err)
 	}
@@ -253,7 +349,7 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 		if !rs.Bundle {
 			continue
 		}
-		repoAbsPath := filepath.Join(basePath, filepath.FromSlash(rs.RelPath))
+		repoAbsPath := snap.repoAbsPath(rs)
 		if git.CommitInRemoteRefs(repoAbsPath, rs.HeadCommit) {
 			rs.Bundle = false
 			continue
@@ -282,7 +378,7 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 		if len(rs.Untracked) == 0 {
 			continue
 		}
-		repoAbsPath := filepath.Join(basePath, filepath.FromSlash(rs.RelPath))
+		repoAbsPath := snap.repoAbsPath(&rs)
 		untrackedDir := filepath.Join(dir, "untracked", rs.Name)
 		if err := os.MkdirAll(untrackedDir, 0o755); err != nil {
 			return fmt.Errorf("create untracked dir: %w", err)
@@ -305,9 +401,9 @@ func Write(snap *Snapshot, dir string, basePath string) error {
 // Snapshots with payload files keep the directory layout so they can live
 // next to snapshot.json. If archiveDir is true, that directory is
 // also written as outputBase+".tar".
-func WriteOutput(snap *Snapshot, outputBase string, basePath string, archiveDir bool) (string, error) {
+func WriteOutput(snap *Snapshot, outputBase string, archiveDir bool) (string, error) {
 	if HasPayload(snap) {
-		if err := Write(snap, outputBase, basePath); err != nil {
+		if err := Write(snap, outputBase); err != nil {
 			return "", err
 		}
 		if archiveDir {

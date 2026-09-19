@@ -15,7 +15,7 @@ var en = map[string]string{
 	"root.flag.lang":       "output language (en, zh)",
 
 	// scan
-	"scan.short":        "Scan a directory for git repos and register them",
+	"scan.short":        "Scan directories for git repos and register them",
 	"scan.flag.recurse": "scan subdirectories recursively",
 	"scan.flag.group":   "auto-create groups by subdirectory name",
 	"scan.none_found":   "No git repositories found.",
@@ -41,9 +41,8 @@ var en = map[string]string{
 	"snapshot.written":      "Snapshot written to %s (%d repos)",
 
 	// restore
-	"restore.short":          "Restore repos from a snapshot",
-	"restore.flag.base-path": "remap base path for restored repos",
-	"restore.flag.dry-run":   "show what would be done without making changes",
+	"restore.short":        "Restore repos from a snapshot",
+	"restore.flag.dry-run": "show what would be done without making changes",
 
 	// ls
 	"ls.short": "List registered repo names",
@@ -86,10 +85,11 @@ var en = map[string]string{
 	"display.dirty":    "dirty",
 
 	// restore (internal)
-	"restore.progress": "Restoring %d repos from %s into %s",
-	"restore.dry_run":  "[dry-run] would restore %s -> %s",
-	"restore.restored": "restored %s",
-	"restore.updated":  "updated %s (already exists)",
+	"restore.progress":      "Restoring %d repos from %s into %s",
+	"restore.dry_run":       "[dry-run] would restore %s -> %s",
+	"restore.restored":      "restored %s",
+	"restore.updated":       "updated %s (already exists)",
+	"restore.path_conflict": "target path conflict: repos %s and %s would both restore into %s",
 
 	// sync
 	"sync.short":       "Pull latest changes for all registered repos",
@@ -98,7 +98,7 @@ var en = map[string]string{
 	"sync.summary":     "%d repo(s) synced, %d updated, %d error(s).",
 
 	// flake-update
-	"flake-update.short":       "Update Nix flake inputs for repos with flake.nix",
-	"flake-update.flag.group":  "update only repos in this group",
-	"flake-update.summary":     "%d repo(s) checked, %d updated, %d error(s).",
+	"flake-update.short":      "Update Nix flake inputs for repos with flake.nix",
+	"flake-update.flag.group": "update only repos in this group",
+	"flake-update.summary":    "%d repo(s) checked, %d updated, %d error(s).",
 }

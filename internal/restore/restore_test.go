@@ -28,7 +28,7 @@ func TestRestoreCleanRepo(t *testing.T) {
 	targetDir, _ := os.MkdirTemp("", "githand-restore-test-")
 	defer os.RemoveAll(targetDir)
 
-	err := Run(snapPath, targetDir, "", false)
+	err := Run(snapPath, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,12 +61,12 @@ func TestRestoreUnpushedHeadCommits(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
 	targetDir := t.TempDir()
-	if err := Run(snapDir, targetDir, "", false); err != nil {
+	if err := Run(snapDir, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,7 +99,7 @@ func TestRestoreUnpushedHeadIntoExistingRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +107,7 @@ func TestRestoreUnpushedHeadIntoExistingRepo(t *testing.T) {
 	repoDir := filepath.Join(targetDir, "ahead-existing")
 	origin := gitOut(t, srcDir, "remote", "get-url", "origin")
 	gitCmd(t, targetDir, "clone", origin, repoDir)
-	if err := Run(snapDir, targetDir, "", false); err != nil {
+	if err := Run(snapDir, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 	if gotHead := getHEAD(t, repoDir); gotHead != wantHead {
@@ -143,12 +143,12 @@ func TestRestoreHeadAvailableOnlyFromSecondaryRemote(t *testing.T) {
 		t.Fatal("HEAD available from upstream should not require a bundle")
 	}
 	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
 	targetDir := t.TempDir()
-	if err := Run(snapDir, targetDir, "", false); err != nil {
+	if err := Run(snapDir, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 	repoDir := filepath.Join(targetDir, "secondary-remote")
@@ -174,7 +174,7 @@ func TestRestoreFromDirectory(t *testing.T) {
 	defer os.RemoveAll(targetDir)
 
 	// pass the directory path (not the json file) — should find snapshot.json inside
-	err := Run(snapDir, targetDir, "", false)
+	err := Run(snapDir, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestRestoreWithPatch(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-patch-")
 	defer os.RemoveAll(tmpDir)
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -219,7 +219,7 @@ func TestRestoreWithPatch(t *testing.T) {
 	defer os.RemoveAll(targetDir)
 
 	// pass directory path
-	err = Run(snapDir, targetDir, "", false)
+	err = Run(snapDir, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestRestoreDryRun(t *testing.T) {
 	targetDir, _ := os.MkdirTemp("", "githand-restore-test-")
 	defer os.RemoveAll(targetDir)
 
-	err := Run(snapPath, targetDir, "", true)
+	err := Run(snapPath, targetDir, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestRestoreDetachedHEAD(t *testing.T) {
 	targetDir, _ := os.MkdirTemp("", "githand-restore-test-")
 	defer os.RemoveAll(targetDir)
 
-	err := Run(snapPath, targetDir, "", false)
+	err := Run(snapPath, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,14 +309,14 @@ func TestRestoreWithStash(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-stash-")
 	defer os.RemoveAll(tmpDir)
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
 	targetDir, _ := os.MkdirTemp("", "githand-restore-target-")
 	defer os.RemoveAll(targetDir)
 
-	err = Run(snapDir, targetDir, "", false)
+	err = Run(snapDir, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,14 +380,14 @@ func TestRestoreNestedPaths(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "githand-restore-nested-snap-")
 	defer os.RemoveAll(tmpDir)
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
 	targetDir, _ := os.MkdirTemp("", "githand-restore-target-")
 	defer os.RemoveAll(targetDir)
 
-	err = Run(snapDir, targetDir, "", false)
+	err = Run(snapDir, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ func TestRestoreExistingRepo(t *testing.T) {
 	defer os.RemoveAll(targetDir)
 
 	// First restore - should clone
-	err := Run(snapPath, targetDir, "", false)
+	err := Run(snapPath, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -552,7 +552,7 @@ func TestRestoreExistingRepo(t *testing.T) {
 	})
 
 	// Second restore - should update existing repo
-	err = Run(snapPath2, targetDir, "", false)
+	err = Run(snapPath2, targetDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,7 +575,7 @@ func TestRestoreExistingRepoDoesNotDiscardLocalChanges(t *testing.T) {
 	})
 
 	targetDir := t.TempDir()
-	if err := Run(snapPath, targetDir, "", false); err != nil {
+	if err := Run(snapPath, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -585,7 +585,7 @@ func TestRestoreExistingRepoDoesNotDiscardLocalChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Run(snapPath, targetDir, "", false); err != nil {
+	if err := Run(snapPath, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -626,7 +626,7 @@ func TestRestoreExistingRepoUsesSnapshotRemoteAndCommit(t *testing.T) {
 		Branches:      []snapshot.BranchSnap{{Name: "main", Upstream: "origin/main"}},
 	})
 
-	if err := Run(snapPath, targetDir, "", false); err != nil {
+	if err := Run(snapPath, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -699,12 +699,12 @@ func TestRestoreHooksPath(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	snapDir := filepath.Join(tmpDir, "githand-snapshot.test")
-	if err := snapshot.Write(snap, snapDir, parent); err != nil {
+	if err := snapshot.Write(snap, snapDir); err != nil {
 		t.Fatal(err)
 	}
 
 	targetDir := t.TempDir()
-	if err := Run(snapDir, targetDir, "", false); err != nil {
+	if err := Run(snapDir, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -715,11 +715,89 @@ func TestRestoreHooksPath(t *testing.T) {
 	}
 
 	// Second restore into the now-existing repo should preserve hooksPath.
-	if err := Run(snapDir, targetDir, "", false); err != nil {
+	if err := Run(snapDir, targetDir, false); err != nil {
 		t.Fatal(err)
 	}
 	got = gitOut(t, repoDir, "config", "--local", "--get", "core.hooksPath")
 	if got != ".git/hooks" {
 		t.Errorf("expected local core.hooksPath .git/hooks after update restore, got %q", got)
+	}
+}
+
+func TestRestorePlacesSecondaryRootUnderBasename(t *testing.T) {
+	bareA := initBareRepo(t, "primary-repo")
+	commitA := getHEAD(t, bareA)
+	bareB := initBareRepo(t, "second-repo")
+	commitB := getHEAD(t, bareB)
+
+	primary := filepath.Join(t.TempDir(), "work")
+	secondary := filepath.Join(t.TempDir(), "code")
+
+	snap := snapshot.Snapshot{
+		Schema:    1,
+		BasePath:  primary,
+		BasePaths: []string{primary, secondary},
+		Repos: []snapshot.RepoSnap{
+			{
+				Name:          "primary-repo",
+				RelPath:       "primary-repo",
+				CurrentBranch: "main",
+				HeadCommit:    commitA,
+				Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareA}},
+				Branches:      []snapshot.BranchSnap{{Name: "main", Upstream: "origin/main"}},
+			},
+			{
+				Name:          "second-repo",
+				RelPath:       "second-repo",
+				BasePath:      secondary,
+				CurrentBranch: "main",
+				HeadCommit:    commitB,
+				Remotes:       []snapshot.RemoteSnap{{Name: "origin", URL: bareB}},
+				Branches:      []snapshot.BranchSnap{{Name: "main", Upstream: "origin/main"}},
+			},
+		},
+	}
+	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
+	if err := snapshot.Write(&snap, snapDir); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	if err := Run(snapDir, targetDir, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(targetDir, "primary-repo", ".git")); err != nil {
+		t.Errorf("primary-root repo should restore flat under target: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, filepath.Base(secondary), "second-repo", ".git")); err != nil {
+		t.Errorf("secondary-root repo should restore under target/<root name>/: %v", err)
+	}
+}
+
+func TestRestoreRejectsPathConflicts(t *testing.T) {
+	snap := snapshot.Snapshot{
+		Schema:   1,
+		BasePath: "/src/work",
+		Repos: []snapshot.RepoSnap{
+			{Name: "first", RelPath: "dup"},
+			{Name: "second", RelPath: "dup"},
+		},
+	}
+	snapDir := filepath.Join(t.TempDir(), "githand-snapshot.test")
+	if err := snapshot.Write(&snap, snapDir); err != nil {
+		t.Fatal(err)
+	}
+
+	targetDir := t.TempDir()
+	err := Run(snapDir, targetDir, false)
+	if err == nil {
+		t.Fatal("conflicting target paths should fail the restore")
+	}
+	if !strings.Contains(err.Error(), "first") || !strings.Contains(err.Error(), "second") {
+		t.Errorf("conflict error should name both repos, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(targetDir, "dup")); !os.IsNotExist(statErr) {
+		t.Error("no repo should be restored when the layout conflicts")
 	}
 }

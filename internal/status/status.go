@@ -219,7 +219,7 @@ type SyncResult struct {
 
 // SyncRegistry synchronizes the registry with the filesystem:
 // - Removes repos whose paths no longer exist
-// - Discovers and adds new repos under BasePath
+// - Discovers and adds new repos under every registered base path
 // Returns the number of repos added and removed.
 func SyncRegistry(reg *config.Registry, recursive, autoGroup bool) (SyncResult, error) {
 	result := SyncResult{}
@@ -237,15 +237,15 @@ func SyncRegistry(reg *config.Registry, recursive, autoGroup bool) (SyncResult, 
 	}
 	reg.Repos = validRepos
 
-	// Step 2: Discover new repos under BasePath
-	if reg.BasePath == "" {
+	// Step 2: Discover new repos under every registered workspace root
+	roots := reg.BasePaths
+	if len(roots) == 0 && reg.BasePath != "" {
+		// registry built directly rather than through LoadRegistry
+		roots = []string{reg.BasePath}
+	}
+	if len(roots) == 0 {
 		// No base path configured, skip discovery
 		return result, nil
-	}
-
-	found, err := discover.Discover(reg.BasePath, recursive, autoGroup)
-	if err != nil {
-		return result, err
 	}
 
 	// Build a map of existing repos by normalized path
@@ -260,25 +260,32 @@ func SyncRegistry(reg *config.Registry, recursive, autoGroup bool) (SyncResult, 
 		existing[normalized] = true
 	}
 
-	// Add new repos
-	for _, r := range found {
-		// Normalize the discovered path as well
-		normalized, err := filepath.EvalSymlinks(r.Path)
+	for _, root := range roots {
+		found, err := discover.Discover(root, recursive, autoGroup)
 		if err != nil {
-			normalized = r.Path
+			return result, err
 		}
 
-		if !existing[normalized] {
-			reg.Repos = append(reg.Repos, r)
-			existing[normalized] = true
-			result.Added++
+		// Add new repos
+		for _, r := range found {
+			// Normalize the discovered path as well
+			normalized, err := filepath.EvalSymlinks(r.Path)
+			if err != nil {
+				normalized = r.Path
+			}
 
-			// Register in groups map
-			if r.Group != "" {
-				if reg.Groups == nil {
-					reg.Groups = make(map[string][]string)
+			if !existing[normalized] {
+				reg.Repos = append(reg.Repos, r)
+				existing[normalized] = true
+				result.Added++
+
+				// Register in groups map
+				if r.Group != "" {
+					if reg.Groups == nil {
+						reg.Groups = make(map[string][]string)
+					}
+					reg.Groups[r.Group] = append(reg.Groups[r.Group], r.Name)
 				}
-				reg.Groups[r.Group] = append(reg.Groups[r.Group], r.Name)
 			}
 		}
 	}

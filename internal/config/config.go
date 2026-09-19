@@ -139,10 +139,28 @@ type Repo struct {
 
 // Registry represents the contents of repos.toml.
 type Registry struct {
-	Version  int                 `toml:"version"`
-	BasePath string              `toml:"base_path"`
-	Repos    []Repo              `toml:"repos"`
-	Groups   map[string][]string `toml:"groups"`
+	Version  int    `toml:"version"`
+	BasePath string `toml:"base_path"`
+	// BasePaths lists every registered workspace root. BasePath is the
+	// primary root and always equals BasePaths[0] after normalization.
+	BasePaths []string            `toml:"base_paths,omitempty"`
+	Repos     []Repo              `toml:"repos"`
+	Groups    map[string][]string `toml:"groups"`
+}
+
+// normalizeBasePaths keeps BasePath and BasePaths consistent in both
+// directions: a legacy file with only base_path gains BasePaths, and a
+// hand-written file with only base_paths gains a primary BasePath.
+func (r *Registry) normalizeBasePaths() {
+	if len(r.BasePaths) == 0 {
+		if r.BasePath != "" {
+			r.BasePaths = []string{r.BasePath}
+		}
+		return
+	}
+	if r.BasePath == "" {
+		r.BasePath = r.BasePaths[0]
+	}
 }
 
 // LoadRegistry reads repos.toml from the given directory.
@@ -159,11 +177,18 @@ func LoadRegistry(dir string) (Registry, error) {
 	if err := toml.Unmarshal(data, &reg); err != nil {
 		return Registry{}, fmt.Errorf("parse registry: %w", err)
 	}
+	reg.normalizeBasePaths()
 	return reg, nil
 }
 
 // SaveRegistry writes reg to repos.toml in the given directory.
 func SaveRegistry(dir string, reg Registry) error {
+	reg.normalizeBasePaths()
+	// Single-root registries keep the legacy layout: only base_path is
+	// written so files that never used multiple roots stay unchanged.
+	if len(reg.BasePaths) <= 1 {
+		reg.BasePaths = nil
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}

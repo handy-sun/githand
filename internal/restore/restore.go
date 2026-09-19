@@ -15,7 +15,7 @@ import (
 
 // Run restores repos from a snapshot into targetDir.
 // snapPath can be either a directory (containing snapshot.json) or a direct .json file.
-func Run(snapPath, targetDir, basePath string, dryRun bool) error {
+func Run(snapPath, targetDir string, dryRun bool) error {
 	// resolve snapshot JSON path (dir or file)
 	jsonPath, err := snapshot.ResolveSnapshotPath(snapPath)
 	if err != nil {
@@ -32,19 +32,24 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 		return fmt.Errorf("parse snapshot: %w", err)
 	}
 
-	// determine base path for path remapping
-	effectiveBase := snap.BasePath
-	if basePath != "" {
-		effectiveBase = basePath
+	// tolerate hand-written manifests that only list base_paths
+	if snap.BasePath == "" && len(snap.BasePaths) > 0 {
+		snap.BasePath = snap.BasePaths[0]
 	}
 
 	// snapshot directory (parent of snapshot.json)
 	snapDir := filepath.Dir(jsonPath)
 
+	// decide every target path up front so collisions fail before any work
+	repoDirs, err := placeRepos(&snap, targetDir)
+	if err != nil {
+		return err
+	}
+
 	fmt.Println(i18n.Tf("restore.progress", len(snap.Repos), snapPath, targetDir))
 
-	for _, rs := range snap.Repos {
-		repoDir := filepath.Join(targetDir, rs.RelPath)
+	for i, rs := range snap.Repos {
+		repoDir := repoDirs[i]
 
 		if dryRun {
 			fmt.Println(i18n.Tf("restore.dry_run", rs.Name, repoDir))
@@ -67,11 +72,36 @@ func Run(snapPath, targetDir, basePath string, dryRun bool) error {
 		} else {
 			fmt.Println(i18n.Tf("restore.restored", rs.Name))
 		}
-
-		_ = effectiveBase // used for path remapping
 	}
 
 	return nil
+}
+
+// placeRepos computes the target directory for every repo in the snapshot.
+// Repos anchored at the primary base path land directly under targetDir;
+// repos anchored at another registered root nest under
+// targetDir/<base name of that root>/ so separate workspaces cannot collide.
+// Returns an error when two repos would restore into the same directory.
+func placeRepos(snap *snapshot.Snapshot, targetDir string) ([]string, error) {
+	dirs := make([]string, len(snap.Repos))
+	seen := make(map[string]string, len(snap.Repos))
+
+	for i, rs := range snap.Repos {
+		var repoDir string
+		if rs.BasePath != "" && rs.BasePath != snap.BasePath {
+			repoDir = filepath.Join(targetDir, filepath.Base(rs.BasePath), rs.RelPath)
+		} else {
+			repoDir = filepath.Join(targetDir, rs.RelPath)
+		}
+
+		if prev, dup := seen[repoDir]; dup {
+			return nil, fmt.Errorf("%s", i18n.Tf("restore.path_conflict", prev, rs.Name, repoDir))
+		}
+		seen[repoDir] = rs.Name
+		dirs[i] = repoDir
+	}
+
+	return dirs, nil
 }
 
 func restoreRepo(rs snapshot.RepoSnap, targetDir, snapDir string) error {

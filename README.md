@@ -10,7 +10,8 @@ Move your entire git workspace to a new machine with one command, **including un
 - **Dirty state preservation** — staged/unstaged diffs, stash entries, and untracked files (including binary) are all captured and restored
 - **Parallel status** — collect status across all repos concurrently (configurable worker count)
 - **Smart grouping** — auto-group repos by subdirectory name, or manage groups manually
-- **Portable paths** — snapshots use relative paths internally; `--base-path` remaps the root on restore, so `/Users/you/work` becomes `/home/me/projects` seamlessly
+- **Multi-root workspaces** — register repos from several roots (e.g. `~/work` and `/srv/code`) in one registry; scanning multiple paths in one command is supported
+- **Portable paths** — snapshots use relative paths internally, so `/Users/you/work/nix/expnix` restores as `<target>/nix/expnix` on any machine; secondary roots restore under their directory name
 - **Filter & query** — find dirty repos, repos ahead of remote, stashed repos, or repos by group/owner
 - **JSON output** — machine-readable status output for scripting
 - **TOML config** — config, registry, and groups live under `~/.config/githand/` (`githand.toml` + `repos.toml`), or under `GITHAND_HOME`
@@ -33,8 +34,9 @@ Requires Go 1.26+ and git. CGO disabled (pure Go build).
 ## Quick Start
 
 ```bash
-# 1. Discover all git repos under your workspace
+# 1. Discover all git repos under your workspace (one or more roots)
 githand scan ~/work --recursive --auto-group
+githand scan ~/work /srv/code --recursive
 
 # 2. Check status across all repos
 githand status
@@ -43,7 +45,7 @@ githand status
 githand snapshot -o ~/snapshots
 
 # 4. On the new machine, restore everything
-githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/work
+githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work
 ```
 
 ## Commands
@@ -51,12 +53,12 @@ githand restore ~/snapshots/githand-snapshot.0515-221241 ~/work --base-path ~/wo
 ### scan — discover and register repos
 
 ```bash
-githand scan <path>                    # scan a directory for git repos
+githand scan <path>...                 # scan one or more directories for git repos
 githand scan <path> -r                 # scan subdirectories recursively
 githand scan <path> --auto-group       # auto-create groups by subdirectory name
 ```
 
-On first scan, the directory is recorded as `base_path`. Subsequent scans preserve it. Repos already in the registry are skipped.
+Every scanned directory that contains repos is recorded as a workspace root under `base_paths`; the first root ever recorded becomes the primary `base_path`, and later scans never move it. Repos already in the registry are skipped. Use `status --sync` to pick up new repos under any registered root automatically.
 
 ### status — show repo status
 
@@ -76,7 +78,7 @@ githand status --json                  # machine-readable JSON output
 
 Use the `--sync` flag or set `status.auto_sync = true` in the config file, and the `status` command will automatically:
 - Remove repos from the registry that no longer exist on disk
-- Discover and add new repos under `base_path`
+- Discover and add new repos under any registered base path
 
 This way you don't need to manually run `scan` every time you add or remove repos.
 
@@ -156,7 +158,6 @@ With `--archive`, that directory is also packed as `githand-snapshot.0515-221241
 
 ```bash
 githand restore <snapshot.json> <target_dir>
-githand restore <snapshot.json> <target_dir> --base-path /new/root
 githand restore <snapshot.json> <target_dir> --dry-run
 ```
 
@@ -172,7 +173,7 @@ Restore replays each repo's snapshot in order:
 8. Apply stash patches (`git apply --index` + `git stash` for each)
 9. Copy untracked files from the snapshot directory
 
-The `--base-path` flag remaps the snapshot's original root to a new path, preserving the relative directory structure. Without it, `target_dir` is used as the base.
+Every target path is computed before any work starts. Repos from the primary workspace root restore directly under `target_dir`; repos from additional roots restore under `target_dir/<root name>/` so separate workspaces stay apart. If two repos would land in the same directory, restore fails up front without touching the disk.
 
 ### ls, rm — manage the registry
 
@@ -193,21 +194,32 @@ githand group ls                       # list all groups
 
 ### Path Portability
 
-Snapshots store relative paths, not absolute ones. When you scan `~/work`, the base path `/Users/you/work` is recorded. At snapshot time, each repo's path is computed relative to this base (e.g. `nix/expnix`, `agent-switch/cc-switch`).
+Snapshots store relative paths, not absolute ones. When you scan `~/work`, that directory is recorded as the workspace root. At snapshot time, each repo's path is computed relative to its root (e.g. `nix/expnix`, `agent-switch/cc-switch`).
 
-On restore, `--base-path` sets the new root. The relative structure is preserved:
+On restore, `target_dir` is the new root and the relative structure is preserved:
 
 ```
 Machine A:  /Users/you/work/nix/expnix
                          ^^^^^^^^^^^^^  relative path
-Machine B:  /home/me/projects/nix/expnix  (--base-path /home/me/projects)
+Machine B:  /home/me/projects/nix/expnix   (restore target: /home/me/projects)
 ```
 
 This means a single snapshot works across macOS, Linux, or any path layout.
 
+### Multiple Workspace Roots
+
+Repos can live under several roots — say `~/work` and `/srv/code` — registered by scanning both (`githand scan ~/work /srv/code`). Each root is tracked in the registry's `base_paths`; the first one remains the primary.
+
+At snapshot time, each repo anchors at the longest registered root that contains it. On restore, primary-root repos land directly under `target_dir`, while repos from additional roots nest under that root's directory name:
+
+```
+~/work/tools/githand       →  <target>/tools/githand          (primary root)
+/srv/code/nix/expnix       →  <target>/code/nix/expnix        (root /srv/code)
+```
+
 ### Why Not Store Relative Paths in the Registry?
 
-If `base_path` changes (e.g. you rescan from a different directory), stored relative paths become stale. Computing them at snapshot time from the stored `base_path` + absolute `path` is simpler and always correct.
+If a root moves (e.g. you rescan from a different directory), stored relative paths would become stale. Computing them at snapshot time from the registered roots + absolute `path` is simpler and always correct.
 
 ## Comparison with gita
 
@@ -227,7 +239,7 @@ If `base_path` changes (e.g. you rescan from a different directory), stored rela
 | **Parallel status** | Goroutine pool | Async execution |
 | **Filter by state** | dirty / ahead / stash / detached | Color-coded display |
 | **Group by subdirectory** | `--auto-group` on scan | `add -a` on add |
-| **Path portability** | Relative paths + `--base-path` | `clone -p` preserves paths |
+| **Path portability** | Relative paths + multi-root support | `clone -p` preserves paths |
 | **JSON output** | `--json` flag | No |
 | **Implementation** | Go (single binary) | Python (pip package) |
 

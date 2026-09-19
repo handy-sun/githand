@@ -319,6 +319,58 @@ func TestSyncRegistryBoth(t *testing.T) {
 	}
 }
 
+func TestSyncRegistryDiscoversUnderAllBasePaths(t *testing.T) {
+	workspaceA, err := os.MkdirTemp("", "githand-sync-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workspaceA) })
+	workspaceB, err := os.MkdirTemp("", "githand-sync-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workspaceB) })
+
+	initSyncRepo(t, filepath.Join(workspaceA, "alpha"))
+	initSyncRepo(t, filepath.Join(workspaceB, "beta"))
+
+	reg := &config.Registry{
+		BasePath:  workspaceA,
+		BasePaths: []string{workspaceA, workspaceB},
+		Repos:     []config.Repo{},
+		Groups:    make(map[string][]string),
+	}
+
+	result, err := SyncRegistry(reg, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Added != 2 {
+		t.Errorf("expected 2 added across both base paths, got %d", result.Added)
+	}
+	if len(reg.Repos) != 2 {
+		t.Fatalf("expected 2 repos after sync, got %d", len(reg.Repos))
+	}
+	names := map[string]bool{}
+	for _, r := range reg.Repos {
+		names[r.Name] = true
+	}
+	if !names["alpha"] || !names["beta"] {
+		t.Errorf("expected repos from both base paths, got %v", names)
+	}
+}
+
+func initSyncRepo(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, dir, "init")
+	mustGit(t, dir, "config", "user.email", "test@test.com")
+	mustGit(t, dir, "config", "user.name", "Test")
+}
+
 func mustGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
