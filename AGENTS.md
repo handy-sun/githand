@@ -93,13 +93,13 @@ Format:
 version = 1
 
 [scan]
-recursive = true
+recursive = false
 auto_group = true
 
 [status]
 workers = 8
 json = false
-auto_sync = false
+auto_sync = true
 
 [snapshot]
 output_dir = "~/.cache/githand"
@@ -261,6 +261,8 @@ Read snapshot JSON (and locate sibling payload directories if present), then for
 
 After restore, status should match the original dirty state as closely as Git permits.
 
+Note: the `--base-path` flag is currently accepted but not applied — restore simply joins `target_dir` with each repo's recorded relative path, and no test covers path remapping. It is slated for rework as part of multi-root workspace support.
+
 ## Testing Priorities
 
 Tests use temporary directories and real `git` commands. The important behavior is compatibility with Git, not mocked command strings.
@@ -276,7 +278,6 @@ Coverage already includes:
 - binary untracked file preservation
 - detached HEAD restore
 - `core.hooksPath` capture and restore (fresh clone and existing-repo update)
-- path remapping with `--base-path`
 - snapshot directory layout, single-JSON output, and `.tar` archive contents
 
 When adding behavior, add a test alongside it.
