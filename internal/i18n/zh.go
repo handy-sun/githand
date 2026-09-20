@@ -71,11 +71,12 @@ var zh = map[string]string{
 	"cobra.completion":             "为指定的 shell 生成自动补全脚本",
 
 	// display
-	"display.no_repos": "未注册仓库。",
-	"display.header":   "仓库\t分支\t状态\t领先\t落后\t暂存",
-	"display.remote":   "主远端",
-	"display.clean":    "干净",
-	"display.dirty":    "脏",
+	"display.no_repos":   "未注册仓库。",
+	"display.header":     "仓库\t分支\t状态\t领先\t落后\t暂存",
+	"display.remote":     "主远端",
+	"display.clean":      "干净",
+	"display.dirty":      "脏",
+	"display.other_root": "其他",
 
 	// restore (internal)
 	"restore.progress":      "正在将 %d 个仓库从 %s 恢复到 %s",

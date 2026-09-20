@@ -199,7 +199,7 @@ Accepts one or more root directories, validates all of them up front, then for e
 
 ### status
 
-Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data. With `--sync` (or `status.auto_sync = true` in config), the registry is reconciled against disk before status collection: removed repos are pruned, new repos under every registered base path are added.
+Load `repos.toml` and `githand.toml`, apply static filters, collect repo statuses concurrently, then apply dirty/ahead/stash/detached filters that require git status data. Table output groups repos by workspace root (anchored at the longest matching root, primary first) with a `********** <root name> **********` banner per group when more than one root is represented; roots with no surviving repos and single-root registries print flat with no banners. With `--sync` (or `status.auto_sync = true` in config), the registry is reconciled against disk before status collection: removed repos are pruned, new repos under every registered base path are added.
 
 Use a bounded worker count from config or CLI. Default to 8 workers.
 
@@ -279,6 +279,7 @@ Coverage already includes:
 - detached HEAD restore
 - `core.hooksPath` capture and restore (fresh clone and existing-repo update)
 - multi-root anchoring: per-repo `base_path` recording, longest-prefix anchor selection, secondary-root restore layout, and target path conflict preflight
+- status output grouping: root banners with shared column alignment, banner-free single-root output, basename collision fallback, unanchored repos in a trailing section
 - snapshot directory layout, single-JSON output, and `.tar` archive contents
 
 When adding behavior, add a test alongside it.

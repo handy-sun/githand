@@ -78,11 +78,12 @@ var en = map[string]string{
 	"cobra.completion":             "Generate the autocompletion script for the specified shell",
 
 	// display
-	"display.no_repos": "No repositories registered.",
-	"display.header":   "REPO\tBRANCH\tSTATUS\tAHEAD\tBEHIND\tSTASH",
-	"display.remote":   "REMOTE",
-	"display.clean":    "clean",
-	"display.dirty":    "dirty",
+	"display.no_repos":   "No repositories registered.",
+	"display.header":     "REPO\tBRANCH\tSTATUS\tAHEAD\tBEHIND\tSTASH",
+	"display.remote":     "REMOTE",
+	"display.clean":      "clean",
+	"display.dirty":      "dirty",
+	"display.other_root": "other",
 
 	// restore (internal)
 	"restore.progress":      "Restoring %d repos from %s into %s",

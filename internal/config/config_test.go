@@ -257,6 +257,79 @@ func TestLoadRegistryDerivesBasePathFromBasePaths(t *testing.T) {
 	}
 }
 
+func TestRegistryRootsToleratesDirectConstruction(t *testing.T) {
+	reg := &Registry{}
+	if roots := reg.Roots(); len(roots) != 0 {
+		t.Errorf("empty registry should have no roots, got %v", roots)
+	}
+
+	reg = &Registry{BasePath: "/a"}
+	if roots := reg.Roots(); len(roots) != 1 || roots[0] != "/a" {
+		t.Errorf("legacy BasePath should surface as one root, got %v", roots)
+	}
+
+	reg = &Registry{BasePaths: []string{"/a", "/b"}}
+	if roots := reg.Roots(); len(roots) != 2 {
+		t.Errorf("expected both roots, got %v", roots)
+	}
+}
+
+func TestRegistryAnchorForPrefersLongestMatch(t *testing.T) {
+	reg := &Registry{
+		BasePath:  "/w",
+		BasePaths: []string{"/w", "/w/sub"},
+	}
+
+	anchor, matched, ok := reg.AnchorFor("/w/sub/deep/repo")
+	if !ok || anchor != "/w/sub" || matched != "/w/sub/deep/repo" {
+		t.Errorf("expected anchor /w/sub, got %q/%q (ok=%v)", anchor, matched, ok)
+	}
+
+	anchor, _, ok = reg.AnchorFor("/w/repo")
+	if !ok || anchor != "/w" {
+		t.Errorf("expected anchor /w, got %q (ok=%v)", anchor, ok)
+	}
+
+	if _, _, ok := reg.AnchorFor("/elsewhere/repo"); ok {
+		t.Error("path outside every root should not anchor")
+	}
+}
+
+func TestRegistryAnchorForExactRootMatch(t *testing.T) {
+	reg := &Registry{BasePath: "/w"}
+	if _, _, ok := reg.AnchorFor("/w"); !ok {
+		t.Error("the root itself should anchor to itself")
+	}
+	if _, _, ok := reg.AnchorFor("/ws"); ok {
+		t.Error("a sibling directory sharing a prefix must not anchor")
+	}
+}
+
+func TestRegistryAnchorForResolvesSymlinks(t *testing.T) {
+	real, err := os.MkdirTemp("", "githand-anchor-real-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(real)
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+
+	reg := &Registry{BasePath: link}
+	repo := filepath.Join(real, "repo")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	anchor, matched, ok := reg.AnchorFor(repo)
+	if !ok || anchor != link {
+		t.Errorf("expected symlinked root %s to match, got %q (ok=%v)", link, anchor, ok)
+	}
+	if matched != repo {
+		t.Errorf("matched should be the resolved repo path, got %q", matched)
+	}
+}
+
 func TestLoadRegistryMissing(t *testing.T) {
 	dir, err := os.MkdirTemp("", "githand-registry-test-")
 	if err != nil {

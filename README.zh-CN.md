@@ -74,6 +74,8 @@ githand status --user handy-sun        # 按远程 URL 所有者筛选
 githand status --json                  # 机器可读的 JSON 输出
 ```
 
+当仓库分布在多个工作区根目录下时，表格会按根目录分组，每组带有 `********** <根目录名> **********` 横幅，便于区分；单根注册表仍保持原来的平铺输出。
+
 **自动同步功能：**
 
 使用 `--sync` 标志或在配置文件中设置 `status.auto_sync = true`，`status` 命令会自动：

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -161,6 +162,78 @@ func (r *Registry) normalizeBasePaths() {
 	if r.BasePath == "" {
 		r.BasePath = r.BasePaths[0]
 	}
+}
+
+// Roots returns every registered workspace root in registry order (primary
+// first), tolerating registries built directly rather than through
+// LoadRegistry.
+func (r *Registry) Roots() []string {
+	if len(r.BasePaths) > 0 {
+		return r.BasePaths
+	}
+	if r.BasePath != "" {
+		return []string{r.BasePath}
+	}
+	return nil
+}
+
+// AnchorFor returns the registered workspace root that contains path,
+// preferring the longest match. Stored paths are matched verbatim first,
+// then symlink-resolved (e.g. macOS /var vs /private/var); in the resolved
+// phase the stored root is returned so a root always anchors under one
+// spelling. matched is the path variant (verbatim or resolved) that pairs
+// with anchor for relative-path computation. ok is false when no registered
+// root contains the path.
+func (r *Registry) AnchorFor(path string) (anchor, matched string, ok bool) {
+	roots := r.Roots()
+	if anchor, matched, ok = longestContaining(roots, path); ok {
+		return anchor, matched, true
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", "", false
+	}
+	resolvedRoots := make([]string, 0, len(roots))
+	storedByResolved := make(map[string]string, len(roots))
+	for _, root := range roots {
+		rr, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			rr = root
+		}
+		resolvedRoots = append(resolvedRoots, rr)
+		if _, seen := storedByResolved[rr]; !seen {
+			storedByResolved[rr] = root
+		}
+	}
+	if ra, _, ok := longestContaining(resolvedRoots, resolved); ok {
+		return storedByResolved[ra], resolved, true
+	}
+	return "", "", false
+}
+
+func longestContaining(paths []string, path string) (anchor, matched string, ok bool) {
+	bestLen := -1
+	for _, base := range paths {
+		if !containsPath(base, path) {
+			continue
+		}
+		if len(base) > bestLen {
+			anchor, matched, bestLen = base, path, len(base)
+		}
+	}
+	return anchor, matched, bestLen >= 0
+}
+
+// containsPath reports whether path is base itself or lies under it.
+func containsPath(base, path string) bool {
+	if base == "" {
+		return false
+	}
+	rel, err := filepath.Rel(base, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // LoadRegistry reads repos.toml from the given directory.

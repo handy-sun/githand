@@ -109,14 +109,14 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 		snap.BasePaths = reg.BasePaths
 	}
 
-	basePaths := registryBasePaths(reg)
+	basePaths := reg.Roots()
 	primary := reg.BasePath
 	if primary == "" && len(basePaths) > 0 {
 		primary = basePaths[0]
 	}
 
 	for _, repo := range repos {
-		rs, err := snapshotRepo(basePaths, primary, repo)
+		rs, err := snapshotRepo(reg, primary, repo)
 		if err != nil {
 			return nil, fmt.Errorf("snapshot %s: %w", repo.Name, err)
 		}
@@ -129,19 +129,7 @@ func Take(reg *config.Registry, repos []config.Repo, includeClean bool) (*Snapsh
 	return snap, nil
 }
 
-// registryBasePaths returns every registered workspace root, tolerating
-// registries built directly rather than through config.LoadRegistry.
-func registryBasePaths(reg *config.Registry) []string {
-	if len(reg.BasePaths) > 0 {
-		return reg.BasePaths
-	}
-	if reg.BasePath != "" {
-		return []string{reg.BasePath}
-	}
-	return nil
-}
-
-func snapshotRepo(basePaths []string, primary string, repo config.Repo) (RepoSnap, error) {
+func snapshotRepo(reg *config.Registry, primary string, repo config.Repo) (RepoSnap, error) {
 	dir := repo.Path
 	rs := RepoSnap{
 		Name:  repo.Name,
@@ -149,7 +137,7 @@ func snapshotRepo(basePaths []string, primary string, repo config.Repo) (RepoSna
 	}
 
 	// anchor the repo at the longest registered root that contains it
-	if anchor, matched, ok := anchorRoot(basePaths, dir); ok {
+	if anchor, matched, ok := reg.AnchorFor(dir); ok {
 		rs.RelPath = relPath(anchor, matched)
 		if anchor != primary {
 			rs.BasePath = anchor
@@ -271,53 +259,6 @@ func relPath(base, path string) string {
 		return path
 	}
 	return filepath.ToSlash(rel)
-}
-
-// anchorRoot finds the registered base path that contains repoPath, preferring
-// the longest match. Stored paths are matched verbatim first, then
-// symlink-resolved (e.g. macOS /var vs /private/var). Returns the anchor and
-// the repo path paired with it; ok is false when no registered root contains
-// the repo.
-func anchorRoot(basePaths []string, repoPath string) (anchor, matched string, ok bool) {
-	if anchor, matched, ok = longestContaining(basePaths, repoPath); ok {
-		return anchor, matched, true
-	}
-	resolvedRepo, err := filepath.EvalSymlinks(repoPath)
-	if err != nil {
-		return "", "", false
-	}
-	resolved := make([]string, 0, len(basePaths))
-	for _, base := range basePaths {
-		if r, err := filepath.EvalSymlinks(base); err == nil {
-			resolved = append(resolved, r)
-		}
-	}
-	return longestContaining(resolved, resolvedRepo)
-}
-
-func longestContaining(paths []string, path string) (anchor, matched string, ok bool) {
-	bestLen := -1
-	for _, base := range paths {
-		if !containsPath(base, path) {
-			continue
-		}
-		if len(base) > bestLen {
-			anchor, matched, bestLen = base, path, len(base)
-		}
-	}
-	return anchor, matched, bestLen >= 0
-}
-
-// containsPath reports whether path is base itself or lies under it.
-func containsPath(base, path string) bool {
-	if base == "" {
-		return false
-	}
-	rel, err := filepath.Rel(base, path)
-	if err != nil {
-		return false
-	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // repoAbsPath resolves a repo's absolute path on the source machine from the

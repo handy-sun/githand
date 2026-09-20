@@ -74,6 +74,8 @@ githand status --user handy-sun        # filter by remote URL owner
 githand status --json                  # machine-readable JSON output
 ```
 
+When repos span several workspace roots, the table is grouped by root under a `********** <root name> **********` banner so workspaces stay visually separate; single-root registries print flat as before.
+
 **Auto-sync feature:**
 
 Use the `--sync` flag or set `status.auto_sync = true` in the config file, and the `status` command will automatically:

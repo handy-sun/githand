@@ -78,7 +78,7 @@ var statusCmd = &cobra.Command{
 			results = status.FilterByFlag(results, statusFilter)
 		}
 
-		return display.Status(results, asJSON, statusRemote)
+		return display.Status(&reg, results, asJSON, statusRemote)
 	},
 }
 

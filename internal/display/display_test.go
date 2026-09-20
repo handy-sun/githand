@@ -20,13 +20,16 @@ func TestStatusTableHidesRemoteByDefault(t *testing.T) {
 	t.Cleanup(func() { i18n.SetLocale("en") })
 
 	output := captureStdout(t, func() {
-		if err := Status([]status.RepoStatus{repoStatusWithRemote()}, false, false); err != nil {
+		if err := Status(singleRootRegistry(), []status.RepoStatus{repoStatusWithRemote()}, false, false); err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	if strings.Contains(output, "主远端") || strings.Contains(output, "github.com") {
 		t.Fatalf("default table should hide the remote column:\n%s", output)
+	}
+	if strings.Contains(output, "*") {
+		t.Fatalf("single root output should stay flat without banners:\n%s", output)
 	}
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -42,7 +45,7 @@ func TestStatusTableShowsRemoteAsLastChineseColumn(t *testing.T) {
 	t.Cleanup(func() { i18n.SetLocale("en") })
 
 	output := captureStdout(t, func() {
-		err := Status([]status.RepoStatus{repoStatusWithRemote()}, false, true)
+		err := Status(singleRootRegistry(), []status.RepoStatus{repoStatusWithRemote()}, false, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +69,7 @@ func TestStatusTableShowsRemoteAsLastChineseColumn(t *testing.T) {
 
 func TestStatusJSONDoesNotAddDerivedSource(t *testing.T) {
 	output := captureStdout(t, func() {
-		err := Status([]status.RepoStatus{
+		err := Status(nil, []status.RepoStatus{
 			{
 				Repo: config.Repo{Name: "githand"},
 				Remotes: []status.RemoteInfo{
@@ -99,7 +102,7 @@ func TestStatusJSONDoesNotAddDerivedSource(t *testing.T) {
 
 func repoStatusWithRemote() status.RepoStatus {
 	return status.RepoStatus{
-		Repo:       config.Repo{Name: "githand"},
+		Repo:       config.Repo{Name: "githand", Path: "/w/githand"},
 		Branch:     "main",
 		Dirty:      false,
 		Ahead:      3,
@@ -108,6 +111,103 @@ func repoStatusWithRemote() status.RepoStatus {
 		Remotes: []status.RemoteInfo{
 			{Name: "origin", URL: "git@github.com:handy-sun/githand.git"},
 		},
+	}
+}
+
+func singleRootRegistry() *config.Registry {
+	return &config.Registry{BasePath: "/w"}
+}
+
+func TestStatusTableGroupsByRootBanner(t *testing.T) {
+	i18n.SetLocale("en")
+	reg := &config.Registry{
+		BasePath:  "/home/qi/Projects",
+		BasePaths: []string{"/home/qi/Projects", "/data/work"},
+	}
+	results := []status.RepoStatus{
+		{Repo: config.Repo{Name: "githand", Path: "/home/qi/Projects/githand"}, Branch: "main"},
+		{Repo: config.Repo{Name: "expnix", Path: "/data/work/nix/expnix"}, Branch: "main", Dirty: true},
+	}
+
+	var output string
+	output = captureStdout(t, func() {
+		if err := Status(reg, results, false, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "********** Projects **********") {
+		t.Fatalf("missing banner for primary root:\n%s", output)
+	}
+	if !strings.Contains(output, "********** work **********") {
+		t.Fatalf("missing banner for secondary root:\n%s", output)
+	}
+
+	bannerPrimary := strings.Index(output, "********** Projects **********")
+	bannerWork := strings.Index(output, "********** work **********")
+	rowGithand := strings.Index(output, "githand")
+	rowExpnix := strings.Index(output, "expnix")
+	if !(bannerPrimary < rowGithand && rowGithand < bannerWork && bannerWork < rowExpnix) {
+		t.Fatalf("repos must be grouped under their root's banner:\n%s", output)
+	}
+
+	// blank line separates the sections
+	if !strings.Contains(output, "\n\n********** work **********") {
+		t.Fatalf("sections should be separated by a blank line:\n%s", output)
+	}
+
+	// every section repeats the header and columns align across sections
+	primaryHeader := strings.Index(output, "REPO")
+	workHeader := strings.LastIndex(output, "REPO")
+	if primaryHeader < 0 || workHeader <= primaryHeader {
+		t.Fatalf("each section should print its own header:\n%s", output)
+	}
+	if output[primaryHeader-2:primaryHeader] != output[workHeader-2:workHeader] {
+		t.Fatalf("sections should share column alignment:\n%s", output)
+	}
+}
+
+func TestStatusTableDisambiguatesRootsWithSameBasename(t *testing.T) {
+	reg := &config.Registry{
+		BasePath:  "/a/work",
+		BasePaths: []string{"/a/work", "/b/work"},
+	}
+	results := []status.RepoStatus{
+		{Repo: config.Repo{Name: "one", Path: "/a/work/one"}, Branch: "main"},
+		{Repo: config.Repo{Name: "two", Path: "/b/work/two"}, Branch: "main"},
+	}
+
+	output := captureStdout(t, func() {
+		if err := Status(reg, results, false, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "********** /a/work **********") || !strings.Contains(output, "********** /b/work **********") {
+		t.Fatalf("colliding basenames should fall back to full root paths:\n%s", output)
+	}
+}
+
+func TestStatusTablePutsUnanchoredReposLast(t *testing.T) {
+	reg := &config.Registry{
+		BasePath:  "/w",
+		BasePaths: []string{"/w", "/srv"},
+	}
+	results := []status.RepoStatus{
+		{Repo: config.Repo{Name: "anchored", Path: "/w/anchored"}, Branch: "main"},
+		{Repo: config.Repo{Name: "floating", Path: "/opt/floating"}, Branch: "main"},
+	}
+
+	output := captureStdout(t, func() {
+		if err := Status(reg, results, false, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	bannerOther := strings.Index(output, "********** other **********")
+	rowFloating := strings.Index(output, "floating")
+	if bannerOther < 0 || rowFloating < bannerOther {
+		t.Fatalf("unanchored repos belong in a trailing other section:\n%s", output)
 	}
 }
 
