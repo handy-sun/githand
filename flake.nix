@@ -10,6 +10,10 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        # Pure evaluation cannot run git describe or read the tag name from
+        # self, so the semantic version comes from the tracked VERSION file.
+        # It is kept in sync with git tags by `make sync-version` / `make tag`
+        # and guarded by the release workflow.
         version = pkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
         commit = self.shortRev or self.dirtyShortRev or "unknown";
         sourceDate = self.lastModifiedDate or "19700101000000";

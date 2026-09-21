@@ -260,6 +260,14 @@ make install-hooks  # 启用提交前格式检查 hook
 
 配置默认位于 `~/.config/githand/`，设置 `GITHAND_HOME` 后改用该目录。全局配置文件名为 `githand.toml`；删除 `repos.toml` 可重置注册表。
 
+### 发布
+
+Makefile 和 GoReleaser 构建从 git 取版本号，而 Nix 构建在纯求值下无法运行 git，因此读取纳入版本控制的 `VERSION` 文件，它镜像最新的 git tag：
+
+- `make tag VER=x.y.z` — 发布新版本：写入 `VERSION`、提交并打 tag；之后 `git push origin main v0.3.1` 推送
+- `make sync-version` — 从最新 tag 修复 `VERSION`（例如手动打了 tag 之后）
+- 发布 workflow 会在 tag 与 `VERSION` 不一致时直接失败，避免旧版本号悄悄流出
+
 ## 许可证
 
 MIT

@@ -19,6 +19,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Verify VERSION matches tag
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "v$(cat VERSION)" ]; then
+            echo "::error::VERSION ($(cat VERSION)) does not match tag ${GITHUB_REF_NAME}; Nix builds would report a stale version."
+            echo "Fix: bump VERSION to ${GITHUB_REF_NAME#v} on the tagged commit and re-tag (or use: make tag VER=x.y.z)."
+            exit 1
+          fi
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

@@ -130,6 +130,43 @@ cross: $(foreach plat,$(PLATFORMS),cross-$(subst /,-,$(plat)))
 snapshot:
 	goreleaser build --snapshot --clean
 
+## ── Release ─────────────────────────────────────────────
+
+## VERSION mirrors the latest git tag for pure flake builds (the flake
+## cannot run git describe). sync-version repairs it from the tags;
+## tag VER=x.y.z cuts a release: writes VERSION, commits, and tags.
+.PHONY: sync-version
+sync-version:
+	@v=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
+	if [ -z "$$v" ]; then \
+		echo "no reachable git tag — nothing to sync"; \
+		exit 1; \
+	fi; \
+	if [ "$$(cat VERSION 2>/dev/null)" != "$$v" ]; then \
+		printf '%s\n' "$$v" > VERSION; \
+		echo "VERSION -> $$v (commit this so flake builds report the right version)"; \
+	else \
+		echo "VERSION already $$v"; \
+	fi
+
+.PHONY: tag
+tag:
+	@if [ -z "$(VER)" ]; then \
+		echo "usage: make tag VER=x.y.z"; \
+		exit 1; \
+	fi
+	@if git rev-parse -q --verify "refs/tags/v$(VER)" >/dev/null; then \
+		echo "tag v$(VER) already exists"; \
+		exit 1; \
+	fi
+	@printf '%s\n' '$(VER)' > VERSION
+	@if ! git diff --quiet -- VERSION; then \
+		git add VERSION; \
+		git commit -m "chore(release): v$(VER)" -- VERSION; \
+	fi
+	@git tag "v$(VER)"
+	@echo "tagged v$(VER) — verify, then: git push origin main v$(VER)"
+
 ## ── Clean ────────────────────────────────────────────────
 
 .PHONY: clean
@@ -154,6 +191,8 @@ help:
 	@echo "  make lint     — go vet + staticcheck"
 	@echo "  make cross    — cross-compile all platforms"
 	@echo "  make snapshot — goreleaser local snapshot build"
+	@echo "  make sync-version — sync VERSION from the latest git tag"
+	@echo "  make tag VER=x.y.z — write VERSION, commit, and tag the release"
 	@echo "  make clean    — remove bin/ and dist/"
 	@echo ""
 	@echo "Cross-compile individual targets:"

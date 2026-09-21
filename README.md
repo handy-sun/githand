@@ -260,6 +260,14 @@ make install-hooks  # enable the pre-commit formatting hook
 
 Config lives at `~/.config/githand/` by default, or at `GITHAND_HOME` when set. The global config file is `githand.toml`; delete `repos.toml` to reset the registry.
 
+### Releasing
+
+Makefile and GoReleaser builds derive the version from git. Nix builds cannot (pure evaluation), so they read the tracked `VERSION` file, which mirrors the latest git tag:
+
+- `make tag VER=x.y.z` — cut a release: writes `VERSION`, commits it, and creates the tag; push with `git push origin main v0.3.1`
+- `make sync-version` — repair `VERSION` from the latest tag (e.g. after tagging manually)
+- The release workflow fails when a pushed tag doesn't match `VERSION`, so a stale file can no longer ship quietly
+
 ## License
 
 MIT
