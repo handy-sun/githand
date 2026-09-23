@@ -57,7 +57,7 @@ func TestStatusTableShowsRemoteAsLastChineseColumn(t *testing.T) {
 	}
 
 	headerStarts := columnStarts(lines[0], []string{"仓库", "分支", "状态", "领先", "落后", "暂存", "主远端"})
-	rowStarts := columnStarts(lines[1], []string{"githand", "main", "干净", "3", "0", "0", "github.com"})
+	rowStarts := columnStarts(lines[1], []string{"githand", "main", "干净", "3", "0", "0", "github.com (ssh)"})
 	if len(headerStarts) != 7 || len(rowStarts) != 7 {
 		t.Fatalf("expected all 7 columns\nheader: %v %q\nrow:    %v %q", headerStarts, lines[0], rowStarts, lines[1])
 	}

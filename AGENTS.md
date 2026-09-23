@@ -19,6 +19,7 @@ githand status --filter stash          # only repos with stash entries
 githand status --filter detached       # only repos in detached HEAD
 githand status --group nix             # only repos in group "nix"
 githand status --user handy-sun        # filter by remote URL owner
+githand status --remote               # show primary remote host and protocol
 githand status --json                  # machine-readable output
 
 githand sync                           # pull latest for all registered repos

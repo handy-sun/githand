@@ -21,7 +21,7 @@ var zh = map[string]string{
 	"status.flag.owner":   "按远程 URL 所有者过滤",
 	"status.flag.json":    "机器可读的 JSON 输出",
 	"status.flag.sync":    "自动同步仓库列表（检测新增和删除的仓库）",
-	"status.flag.remote":  "显示主远端地址",
+	"status.flag.remote":  "显示主远端主机与协议",
 	"status.sync_added":   "新增 %d 个仓库",
 	"status.sync_removed": "移除 %d 个不存在的仓库",
 

@@ -28,7 +28,7 @@ var en = map[string]string{
 	"status.flag.owner":   "filter by remote URL owner",
 	"status.flag.json":    "machine-readable JSON output",
 	"status.flag.sync":    "auto-sync repo list (detect added and removed repos)",
-	"status.flag.remote":  "show the primary remote host",
+	"status.flag.remote":  "show the primary remote host and protocol",
 	"status.sync_added":   "Added %d new repo(s)",
 	"status.sync_removed": "Removed %d missing repo(s)",
 

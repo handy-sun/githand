@@ -71,6 +71,7 @@ githand status --filter stash          # 仅显示有 stash 的仓库
 githand status --filter detached       # 仅显示 detached HEAD 的仓库
 githand status --group nix             # 仅显示 "nix" 分组中的仓库
 githand status --user handy-sun        # 按远程 URL 所有者筛选
+githand status --remote               # 显示主远端主机与协议（如 github.com (ssh)）
 githand status --json                  # 机器可读的 JSON 输出
 ```
 

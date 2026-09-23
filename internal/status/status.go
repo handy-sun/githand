@@ -35,16 +35,9 @@ type RemoteInfo struct {
 // PrimarySource returns the host of the origin remote, or the first remote
 // when origin is not configured.
 func PrimarySource(remotes []RemoteInfo) string {
-	if len(remotes) == 0 {
+	primary, ok := primaryRemote(remotes)
+	if !ok {
 		return "-"
-	}
-
-	primary := remotes[0]
-	for _, remote := range remotes {
-		if remote.Name == "origin" {
-			primary = remote
-			break
-		}
 	}
 
 	if parsed, err := url.Parse(primary.URL); err == nil {
@@ -75,6 +68,61 @@ func PrimarySource(remotes []RemoteInfo) string {
 	}
 
 	return "-"
+}
+
+// PrimaryProtocol returns the transport protocol of the primary remote:
+// https, http, ssh, git, or file. Returns "-" when unknown or absent.
+func PrimaryProtocol(remotes []RemoteInfo) string {
+	primary, ok := primaryRemote(remotes)
+	if !ok {
+		return "-"
+	}
+
+	u := primary.URL
+	// Windows drive-letter paths parse as a single-letter URL scheme; check
+	// them before treating any scheme as an explicit transport.
+	if len(u) >= 3 && u[1] == ':' && (u[2] == '/' || u[2] == '\\') {
+		return "file"
+	}
+	if parsed, err := url.Parse(u); err == nil && parsed.Scheme != "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "http", "https", "ssh", "git", "file":
+			return strings.ToLower(parsed.Scheme)
+		default:
+			return "-" // explicit transport we do not model
+		}
+	}
+	if strings.Contains(u, "://") {
+		return "-" // url.Parse failed on an explicit URL
+	}
+
+	// SCP-like URLs such as git@github.com:owner/repo.git use SSH.
+	colon := strings.IndexByte(u, ':')
+	slash := strings.IndexAny(u, `/\`)
+	if colon > 0 && (slash == -1 || colon < slash) {
+		return "ssh"
+	}
+
+	if strings.HasPrefix(u, "/") || strings.HasPrefix(u, "./") ||
+		strings.HasPrefix(u, "../") || strings.HasPrefix(u, "~") {
+		return "file"
+	}
+	return "-"
+}
+
+// primaryRemote picks the origin remote, falling back to the first one.
+func primaryRemote(remotes []RemoteInfo) (RemoteInfo, bool) {
+	if len(remotes) == 0 {
+		return RemoteInfo{}, false
+	}
+	primary := remotes[0]
+	for _, remote := range remotes {
+		if remote.Name == "origin" {
+			primary = remote
+			break
+		}
+	}
+	return primary, true
 }
 
 // Collect gathers status for all repos in the registry concurrently.

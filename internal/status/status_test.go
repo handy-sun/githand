@@ -175,6 +175,85 @@ func TestPrimarySource(t *testing.T) {
 	}
 }
 
+func TestPrimaryProtocol(t *testing.T) {
+	tests := []struct {
+		name    string
+		remotes []RemoteInfo
+		want    string
+	}{
+		{
+			name:    "https URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "https://github.com/handy-sun/githand.git"}},
+			want:    "https",
+		},
+		{
+			name:    "http URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "http://intranet/git/githand.git"}},
+			want:    "http",
+		},
+		{
+			name:    "ssh scheme URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "ssh://git@codeberg.org/handy-sun/githand.git"}},
+			want:    "ssh",
+		},
+		{
+			name:    "scp-like URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "git@github.com:handy-sun/githand.git"}},
+			want:    "ssh",
+		},
+		{
+			name:    "git scheme URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "git://github.com/handy-sun/githand.git"}},
+			want:    "git",
+		},
+		{
+			name:    "file URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "file:///srv/git/githand.git"}},
+			want:    "file",
+		},
+		{
+			name:    "absolute local path",
+			remotes: []RemoteInfo{{Name: "origin", URL: "/srv/git/githand.git"}},
+			want:    "file",
+		},
+		{
+			name:    "Windows drive-letter path",
+			remotes: []RemoteInfo{{Name: "origin", URL: `C:\repos\githand.git`}},
+			want:    "file",
+		},
+		{
+			name: "prefers origin over first remote",
+			remotes: []RemoteInfo{
+				{Name: "upstream", URL: "https://codeberg.org/handy-sun/githand.git"},
+				{Name: "origin", URL: "git@github.com:handy-sun/githand.git"},
+			},
+			want: "ssh",
+		},
+		{
+			name:    "shows dash for unsupported scheme",
+			remotes: []RemoteInfo{{Name: "origin", URL: "ext::some-transport/githand.git"}},
+			want:    "-",
+		},
+		{
+			name:    "shows dash for malformed explicit URL",
+			remotes: []RemoteInfo{{Name: "origin", URL: "https://%zz/githand.git"}},
+			want:    "-",
+		},
+		{
+			name: "shows dash without remotes",
+			want: "-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PrimaryProtocol(tt.remotes); got != tt.want {
+				t.Fatalf("PrimaryProtocol() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "githand-status-test-")

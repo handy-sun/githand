@@ -164,7 +164,15 @@ func statusRow(s status.RepoStatus, showRemote bool) []string {
 		fmt.Sprint(s.StashCount),
 	}
 	if showRemote {
-		row = append(row, status.PrimarySource(s.Remotes))
+		remote := status.PrimarySource(s.Remotes)
+		switch proto := status.PrimaryProtocol(s.Remotes); {
+		case proto == "-":
+		case remote == "-":
+			remote = proto
+		default:
+			remote = fmt.Sprintf("%s (%s)", remote, proto)
+		}
+		row = append(row, remote)
 	}
 	return row
 }
